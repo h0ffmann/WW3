@@ -436,6 +436,11 @@ CONTAINS
 #endif
     USE W3TRIAMD, ONLY: NVECTRI, AREA_SI, COORDMAX, SPATIAL_GRID
     USE W3GDATMD, ONLY: FSTOTALIMP, FSTOTALEXP
+#ifdef W3_KOKKOS
+    USE W3KOKKOSMD
+    USE W3GDATMD, ONLY: XFR, DTH, LAM, SNLC1, KDCON, KDMN,            &
+         SNLS1, SNLS2, SNLS3, FACHFE
+#endif
     USE W3PARALL, ONLY: INIT_GET_JSEA_ISPROC, INIT_GET_ISEA
 #ifdef W3_TIMINGS
     USE W3PARALL, ONLY: PRINT_MY_TIME
@@ -473,6 +478,9 @@ CONTAINS
     CHARACTER(LEN=40), INTENT(IN) :: PNAMES(NPT)
     LOGICAL, INTENT(IN), OPTIONAL :: FLAGSTIDEIN(4)
     INTEGER                       :: NSEALout, NSEALMout
+#ifdef W3_KOKKOS
+    INTEGER                       :: IERR_K
+#endif
     !/
     !/ ------------------------------------------------------------------- /
     !/ Local parameters
@@ -733,6 +741,33 @@ CONTAINS
     ! 2.a Read model definition file
     !
     CALL W3IOGR ( 'READ', NDS(5), IMOD, FEXT )
+#ifdef W3_KOKKOS
+    !
+    ! 2.a.1 Start the Kokkos runtime and build the ported tables (ww3-gpu,
+    !       kokkos/src/fortran_iface). WW_KOKKOS_INIT is idempotent;
+    !       WW_SNL1_INIT replaces the tables, so phase 1 supports one
+    !       spectral grid per process and refuses a multi-grid run.
+    !
+    IERR_K = WW_KOKKOS_INIT ( -1 )
+    IF ( IERR_K /= 0 ) CALL EXTCDE ( 1 )
+    CALL W3KOKKOS_SETUP
+    IF ( KOKKOS_SNL1 ) THEN
+      IF ( IMOD > 1 ) THEN
+        WRITE (NDSE,'(A,I0,A)') '*** WAVEWATCH III ERROR IN W3INIT : '//      &
+             'THE KOKKOS PORT SUPPORTS ONE GRID PER PROCESS, GOT IMOD=',      &
+             IMOD, '. RUN WITHOUT WW_KOKKOS_SNL1=1.'
+        CALL EXTCDE ( 1 )
+      END IF
+      ! SIG(1:NK), not SIG: W3GDATMD allocates SIG(0:MK+1) and the C dummy is
+      ! assumed-size, so the bare name would pass SIG(0). Not SIG(1) either:
+      ! SIG is a POINTER, and an element of a pointer array cannot be
+      ! sequence-associated with an array dummy (gfortran rejects it).
+      IERR_K = WW_SNL1_INIT ( NK, NTH, XFR, DTH, LAM, SNLC1, KDCON, KDMN,     &
+                              SNLS1, SNLS2, SNLS3, FACHFE, SIG(1:NK) )
+      IF ( IERR_K /= 0 ) CALL EXTCDE ( 1 )
+      WRITE (NDSO,'(A)') '  Kokkos DIA (W3SNL1) enabled.'
+    END IF
+#endif
     IF (GTYPE .eq. UNGTYPE) THEN
       CALL SPATIAL_GRID
       CALL NVECTRI

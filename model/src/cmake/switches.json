@@ -849,4 +849,21 @@
             }
         ]
     }
+,
+    {
+        "name": "kokkos",
+        "num_switches": "upto1",
+        "description": "C++/Kokkos port of the source terms (h0ffmann/ww3-gpu)",
+        "valid-options": [
+            {
+                "name": "KOKKOS",
+                "build_files": [
+                    "w3kokkosmd.F90"
+                ],
+                "requires": [
+                    "NL1"
+                ]
+            }
+        ]
+    }
 ]

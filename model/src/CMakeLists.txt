@@ -17,6 +17,24 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_switches.cmake)
 check_switches("${switches}" switch_files)
 
 add_library(ww3_lib STATIC ${ftn_src} ${switch_files})
+
+# The Kokkos port (h0ffmann/ww3-gpu, kokkos/): built and installed separately,
+# found here. The switch and the library have to agree, so a mismatch is a
+# hard error rather than a link failure a thousand lines later.
+option(WW_KOKKOS "Link the C++/Kokkos port of the source terms" OFF)
+if(WW_KOKKOS)
+  if(NOT "KOKKOS" IN_LIST switches)
+    message(FATAL_ERROR "-DWW_KOKKOS=ON needs the KOKKOS switch in the switch file")
+  endif()
+  # Kokkos' package config needs a C++ compiler (and links the C++ runtime): WW3 itself is
+  # C and Fortran, so C++ is enabled only here. For a CUDA build, configure with
+  # CMAKE_CXX_COMPILER=nvcc_wrapper, the compiler Kokkos was built with.
+  enable_language(CXX)
+  find_package(ww_kokkos REQUIRED)
+  target_link_libraries(ww3_lib PUBLIC ww_kokkos::ww_kokkos)
+elseif("KOKKOS" IN_LIST switches)
+  message(FATAL_ERROR "The KOKKOS switch needs -DWW_KOKKOS=ON and ww_kokkos_DIR")
+endif()
 # Create alias with same name as exported target
 # so that WW3 can be usead with add_subdirectory
 add_library(WW3::WW3 ALIAS ww3_lib)
