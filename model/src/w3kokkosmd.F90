@@ -134,11 +134,11 @@ MODULE W3KOKKOSMD
      !> bound is 0 -- and is copied. One grid per process in phase 1: a second
      !> call replaces the first grid's tables. Returns 0 on success.
      INTEGER(C_INT) FUNCTION WW_SNL1_INIT                                &
-          ( NK, NTH, XFR, DTH, LAM, SNLC1, KDCON, KDMN,                  &
+          ( IGRID, NK, NTH, XFR, DTH, LAM, SNLC1, KDCON, KDMN,           &
             SNLS1, SNLS2, SNLS3, FACHFE, SIG )                           &
           BIND(C, NAME='ww_snl1_init')
        IMPORT :: C_INT, C_FLOAT
-       INTEGER(C_INT), VALUE           :: NK, NTH
+       INTEGER(C_INT), VALUE           :: IGRID, NK, NTH
        REAL(C_FLOAT),  VALUE           :: XFR, DTH, LAM, SNLC1, KDCON,   &
                                           KDMN, SNLS1, SNLS2, SNLS3,     &
                                           FACHFE
@@ -147,10 +147,10 @@ MODULE W3KOKKOSMD
      !
      !> W3SNL1 for NPTS sea points in one launch. S and D are overwritten, not
      !> accumulated. Status in WW_SNL1_LAST_ERROR().
-     SUBROUTINE WW_SNL1 ( NPTS, A, CG, KDMEAN, S, D )                    &
+     SUBROUTINE WW_SNL1 ( IGRID, NPTS, A, CG, KDMEAN, S, D )             &
           BIND(C, NAME='ww_snl1')
        IMPORT :: C_INT, C_FLOAT
-       INTEGER(C_INT), VALUE           :: NPTS
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
        REAL(C_FLOAT),  INTENT(IN)      :: A(*), CG(*), KDMEAN(*)
        REAL(C_FLOAT),  INTENT(OUT)     :: S(*), D(*)
      END SUBROUTINE WW_SNL1

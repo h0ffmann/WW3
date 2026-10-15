@@ -580,6 +580,7 @@ CONTAINS
     USE W3GDATMD, ONLY: IQTPE
 #ifdef W3_KOKKOS
     USE W3KOKKOSMD, ONLY: KOKKOS_SNL1, WW_SNL1, WW_SNL1_LAST_ERROR
+    USE W3GDATMD,   ONLY: IGRID
     USE W3SERVMD,   ONLY: EXTCDE
     USE W3ODATMD,   ONLY: NDSE
 #endif
@@ -1270,10 +1271,10 @@ CONTAINS
 #ifdef W3_KOKKOS
         IF ( KOKKOS_SNL1 ) THEN
           KDM_K(1) = WNMEAN*DEPTH
-          ! The shim has one unlocked context, and W3SRCE runs inside an
-          ! !$OMP PARALLEL region under W3_OMPG / W3_OMP0: serialise the call.
+          ! The shim's per-grid contexts are unlocked, and W3SRCE runs inside
+          ! an !$OMP PARALLEL region under W3_OMPG / W3_OMP0: serialise the call.
           !$OMP CRITICAL (WW_KOKKOS_SNL1)
-          CALL WW_SNL1 ( 1, SPEC, CG1, KDM_K, VSNL, VDNL )
+          CALL WW_SNL1 ( IGRID, 1, SPEC, CG1, KDM_K, VSNL, VDNL )
           IERR_K = WW_SNL1_LAST_ERROR()
           !$OMP END CRITICAL (WW_KOKKOS_SNL1)
           IF ( IERR_K /= 0 ) THEN
