@@ -812,6 +812,13 @@ CONTAINS
     ! Does nothing unless WW_KOKKOS_FLXn=1 for the compiled W3_FLXn.
     CALL W3KOKKOS_FLX_SETUP ( IMOD )
 #endif
+#ifdef W3_ST6
+    CALL W3KOKKOS_ST6_SETUP ( IMOD )
+    IF ( KOKKOS_SPR6 .OR. KOKKOS_SIN6 .OR. KOKKOS_SDS6 )                    &
+         WRITE (NDSO,'(A,3(A,L1))') '  Kokkos ST6 (W3SPR6 W3SIN6 W3SDS6) '// &
+         'enabled:', ' SPR6=', KOKKOS_SPR6, ' SIN6=', KOKKOS_SIN6,       &
+         ' SDS6=', KOKKOS_SDS6
+#endif
 #if defined(W3_ST4) && defined(W3_NL1)
     IF ( KOKKOS_SRCE ) THEN
       CALL W3KOKKOS_SRCE_SETUP ( IMOD )

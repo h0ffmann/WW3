@@ -814,6 +814,90 @@ MODULE W3KOKKOSMD
      END FUNCTION WW_ST3_LAST_ERROR
   END INTERFACE
 #endif
+#ifdef W3_ST6
+  !/
+  !> Kokkos W3SPR6, W3SIN6, W3SDS6: WW_KOKKOS_SPR6/SIN6/SDS6=1, read by
+  !> W3KOKKOS_ST6_SETUP. .FALSE. until then: the Fortran runs.
+  LOGICAL :: KOKKOS_SPR6 = .FALSE., KOKKOS_SIN6 = .FALSE.,             &
+             KOKKOS_SDS6 = .FALSE.
+  !/
+  !/ ST6 packet indices, 0-based as WwSt6Rpar, WwSt6Ipar, WwSt6Array and
+  !/ WwSt6Code in ww_kokkos_c.hpp: Fortran RPAR(ST6_R_X+1). Change them only
+  !/ with it.
+  !/
+  INTEGER, PARAMETER :: ST6_R_DTH = 0, ST6_R_XFR = 1, ST6_R_FTE = 2,   &
+       ST6_R_FTF = 3, ST6_R_FTWN = 4, ST6_R_SIN6A0 = 5,                 &
+       ST6_R_SIN6WS = 6, ST6_R_SIN6CHKMIN = 7, ST6_R_SIN6CHKCAP = 8,    &
+       ST6_R_SIN6CHKINF = 9, ST6_R_SIN6CHKSIG = 10, ST6_R_SDS6A1 = 11,  &
+       ST6_R_SDS6A2 = 12, ST6_NRPAR = 13
+  INTEGER, PARAMETER :: ST6_I_NK = 0, ST6_I_NTH = 1, ST6_I_NSPEC = 2,  &
+       ST6_I_SIN6FLCAP = 3, ST6_I_SDS6P1 = 4, ST6_I_SDS6P2 = 5,         &
+       ST6_I_SDS6ET = 6, ST6_NIPAR = 7
+  INTEGER, PARAMETER :: ST6_A_SIG = 0, ST6_A_DDEN = 1, ST6_A_DSII = 2, &
+       ST6_A_SIG2 = 3, ST6_A_DDEN2 = 4, ST6_A_ECOS = 5, ST6_A_ESIN = 6
+  INTEGER, PARAMETER :: ST6_C_IKN = 1, ST6_C_LF_IK10HZ = 2,            &
+       ST6_C_LF_MK10HZ = 3, ST6_C_TWA_MK10HZ = 4, ST6_C_LF_ITERMAX = 5
+  !/
+  INTERFACE
+     INTEGER(C_INT) FUNCTION WW_ST6_INIT ( IGRID, RPAR, NR, IPAR, NI )   &
+          BIND(C, NAME='ww_st6_init')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NR, NI
+       REAL(C_FLOAT),  INTENT(IN)      :: RPAR(*)
+       INTEGER(C_INT), INTENT(IN)      :: IPAR(*)
+     END FUNCTION WW_ST6_INIT
+     INTEGER(C_INT) FUNCTION WW_ST6_SET_REAL ( IGRID, ID, X, RANK, LB,   &
+          EXT ) BIND(C, NAME='ww_st6_set_real')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, ID, RANK
+       REAL(C_FLOAT),  INTENT(IN)      :: X(*)
+       INTEGER(C_INT), INTENT(IN)      :: LB(*), EXT(*)
+     END FUNCTION WW_ST6_SET_REAL
+     INTEGER(C_INT) FUNCTION WW_ST6_COMMIT ( IGRID )                     &
+          BIND(C, NAME='ww_st6_commit')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE           :: IGRID
+     END FUNCTION WW_ST6_COMMIT
+     SUBROUTINE WW_SPR6 ( IGRID, NPTS, A, CG, WN, EMEAN, FMEAN, WNMEAN,  &
+          AMAX, FP ) BIND(C, NAME='ww_spr6')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: A(*), CG(*), WN(*)
+       REAL(C_FLOAT),  INTENT(OUT)     :: EMEAN(*), FMEAN(*), WNMEAN(*), &
+                                          AMAX(*), FP(*)
+     END SUBROUTINE WW_SPR6
+     INTEGER(C_INT) FUNCTION WW_SIN6 ( IGRID, NPTS, A, CG, WN2, UABS,    &
+          USTAR, USDIR, CD, DAIR, TAUWX, TAUWY, TAUNWX, TAUNWY, CHARN,   &
+          S, D, INFO ) BIND(C, NAME='ww_sin6')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: A(*), CG(*), WN2(*), UABS(*),  &
+                                          USTAR(*), USDIR(*), CD(*),     &
+                                          DAIR(*)
+       REAL(C_FLOAT),  INTENT(OUT)     :: TAUWX(*), TAUWY(*), TAUNWX(*), &
+                                          TAUNWY(*), CHARN(*), S(*), D(*)
+       INTEGER(C_INT), INTENT(OUT)     :: INFO(2)
+     END FUNCTION WW_SIN6
+     INTEGER(C_INT) FUNCTION WW_SDS6 ( IGRID, NPTS, A, CG, WN, S, D,     &
+          INFO ) BIND(C, NAME='ww_sds6')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: A(*), CG(*), WN(*)
+       REAL(C_FLOAT),  INTENT(OUT)     :: S(*), D(*)
+       INTEGER(C_INT), INTENT(OUT)     :: INFO(2)
+     END FUNCTION WW_SDS6
+     !> WHICH = 1 SPR6, 2 SIN6, 3 SDS6.
+     INTEGER(C_INT) FUNCTION WW_ST6_ENABLED ( WHICH )                    &
+          BIND(C, NAME='ww_st6_enabled')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE           :: WHICH
+     END FUNCTION WW_ST6_ENABLED
+     INTEGER(C_INT) FUNCTION WW_ST6_LAST_ERROR ( )                       &
+          BIND(C, NAME='ww_st6_last_error')
+       IMPORT :: C_INT
+     END FUNCTION WW_ST6_LAST_ERROR
+  END INTERFACE
+#endif
   !/
 CONTAINS
   !/ ------------------------------------------------------------------- /
@@ -2193,6 +2277,194 @@ CONTAINS
 6001 FORMAT (' *** WAVEWATCH III ERROR IN W3SWL6 : '/ &
        '     INDEX ARRAY DIM MISMATCH SIZE(IKN)=',I4,' .NE. NK=',I4)
   END SUBROUTINE W3KOKKOS_SWL6
+#endif
+#ifdef W3_ST6
+  !/ ------------------------------------------------------------------- /
+  !> Read WW_KOKKOS_SPR6/SIN6/SDS6 and, when any is set, configure grid
+  !> IMOD of the ST6 shim from W3GDATMD (after W3IOGR, W3SETG done for
+  !> IMOD). The SAVE tables of W3SRC6MD (IKN, MK10Hz, SIG10Hz, DSII10Hz)
+  !> are not built here: the shim builds them at the first W3SIN6/W3SDS6
+  !> call of the process, from that call's grid, as W3SRC6MD does.
+  SUBROUTINE W3KOKKOS_ST6_SETUP ( IMOD )
+    USE W3GDATMD, ONLY: NK, NTH, NSPEC, DTH, XFR, FTE, FTF, FTWN,       &
+         SIN6A0, SIN6WS, SIN6CHKMIN, SIN6CHKCAP, SIN6CHKINF,            &
+         SIN6CHKSIG, SIN6FLCAP, SDS6A1, SDS6A2, SDS6P1, SDS6P2, SDS6ET, &
+         SIG, DDEN, DSII, SIG2, DDEN2, ECOS, ESIN
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: IMOD
+    REAL(C_FLOAT)           :: RPAR(ST6_NRPAR)
+    INTEGER(C_INT)          :: IPAR(ST6_NIPAR)
+    KOKKOS_SPR6 = ( WW_ST6_ENABLED(1_C_INT) == 1_C_INT )
+    KOKKOS_SIN6 = ( WW_ST6_ENABLED(2_C_INT) == 1_C_INT )
+    KOKKOS_SDS6 = ( WW_ST6_ENABLED(3_C_INT) == 1_C_INT )
+    IF ( .NOT. ( KOKKOS_SPR6 .OR. KOKKOS_SIN6 .OR. KOKKOS_SDS6 ) ) RETURN
+    RPAR(ST6_R_DTH+1)         = DTH
+    RPAR(ST6_R_XFR+1)         = XFR
+    RPAR(ST6_R_FTE+1)         = FTE
+    RPAR(ST6_R_FTF+1)         = FTF
+    RPAR(ST6_R_FTWN+1)        = FTWN
+    RPAR(ST6_R_SIN6A0+1)      = SIN6A0
+    RPAR(ST6_R_SIN6WS+1)      = SIN6WS
+    RPAR(ST6_R_SIN6CHKMIN+1)  = SIN6CHKMIN
+    RPAR(ST6_R_SIN6CHKCAP+1)  = SIN6CHKCAP
+    RPAR(ST6_R_SIN6CHKINF+1)  = SIN6CHKINF
+    RPAR(ST6_R_SIN6CHKSIG+1)  = SIN6CHKSIG
+    RPAR(ST6_R_SDS6A1+1)      = SDS6A1
+    RPAR(ST6_R_SDS6A2+1)      = SDS6A2
+    IPAR(ST6_I_NK+1)          = NK
+    IPAR(ST6_I_NTH+1)         = NTH
+    IPAR(ST6_I_NSPEC+1)       = NSPEC
+    IPAR(ST6_I_SIN6FLCAP+1)   = MERGE(1_C_INT, 0_C_INT, SIN6FLCAP)
+    IPAR(ST6_I_SDS6P1+1)      = SDS6P1
+    IPAR(ST6_I_SDS6P2+1)      = SDS6P2
+    IPAR(ST6_I_SDS6ET+1)      = MERGE(1_C_INT, 0_C_INT, SDS6ET)
+    CALL ST6_CHECK ( 'WW_ST6_INIT',                                     &
+         WW_ST6_INIT ( IMOD, RPAR, ST6_NRPAR, IPAR, ST6_NIPAR ) )
+    ! The whole arrays with their LBOUND: SIG is (0:MK+1), the others are
+    ! allocated for MK, MSPEC (w3gdatmd.F90:2062-2069); the shim takes
+    ! (1:NK) or (1:NSPEC) of each.
+    CALL ST6_SET_R1 ( IMOD, ST6_A_SIG, SIG, LBOUND(SIG) )
+    CALL ST6_SET_R1 ( IMOD, ST6_A_DDEN, DDEN, LBOUND(DDEN) )
+    CALL ST6_SET_R1 ( IMOD, ST6_A_DSII, DSII, LBOUND(DSII) )
+    CALL ST6_SET_R1 ( IMOD, ST6_A_SIG2, SIG2, LBOUND(SIG2) )
+    CALL ST6_SET_R1 ( IMOD, ST6_A_DDEN2, DDEN2, LBOUND(DDEN2) )
+    CALL ST6_SET_R1 ( IMOD, ST6_A_ECOS, ECOS, LBOUND(ECOS) )
+    CALL ST6_SET_R1 ( IMOD, ST6_A_ESIN, ESIN, LBOUND(ESIN) )
+    CALL ST6_CHECK ( 'WW_ST6_COMMIT', WW_ST6_COMMIT ( IMOD ) )
+  END SUBROUTINE W3KOKKOS_ST6_SETUP
+  !/ ------------------------------------------------------------------- /
+  !> Stop the run with the shim's status code, as ST4_CHECK does.
+  SUBROUTINE ST6_CHECK ( WHAT, IERR )
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    CHARACTER(LEN=*), INTENT(IN) :: WHAT
+    INTEGER(C_INT), INTENT(IN)   :: IERR
+    IF ( IERR /= 0_C_INT ) THEN
+      WRITE (NDSE,'(A,I0)') '*** WAVEWATCH III ERROR IN W3KOKKOSMD : '// &
+           'KOKKOS '//WHAT//' FAILED, CODE ', IERR
+      CALL EXTCDE ( 1 )
+    END IF
+  END SUBROUTINE ST6_CHECK
+  !/ ------------------------------------------------------------------- /
+  SUBROUTINE ST6_SET_R1 ( IMOD, ID, X, LB )
+    INTEGER, INTENT(IN)     :: IMOD, ID, LB(1)
+    REAL, INTENT(IN)        :: X(:)
+    CALL ST6_CHECK ( 'WW_ST6_SET_REAL', WW_ST6_SET_REAL ( IMOD, ID, X, &
+         1, INT(LB,C_INT), INT(SHAPE(X),C_INT) ) )
+  END SUBROUTINE ST6_SET_R1
+  !/ ------------------------------------------------------------------- /
+  !> W3SPR6 (w3src6md.F90:129) on Kokkos, same dummy list. The shim's
+  !> contexts are unlocked and W3SRCE may run inside an OpenMP parallel
+  !> region (W3_OMPG): the call and its status read are serialised.
+  SUBROUTINE W3KOKKOS_SPR6 ( A, CG, WN, EMEAN, FMEAN, WNMEAN, AMAX, FP )
+    USE W3GDATMD, ONLY: NK, NTH, IGRID
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: A(NTH,NK), CG(NK), WN(NK)
+    REAL, INTENT(OUT)       :: EMEAN, FMEAN, WNMEAN, AMAX, FP
+    REAL(C_FLOAT)           :: EM1(1), FM1(1), WM1(1), AM1(1), FP1(1)
+    INTEGER(C_INT)          :: IERR
+    !$OMP CRITICAL (WW_KOKKOS_ST6)
+    CALL WW_SPR6 ( IGRID, 1, A, CG, WN, EM1, FM1, WM1, AM1, FP1 )
+    IERR = WW_ST6_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_ST6)
+    CALL ST6_CHECK ( 'W3SPR6', IERR )
+    EMEAN = EM1(1)
+    FMEAN = FM1(1)
+    WNMEAN = WM1(1)
+    AMAX = AM1(1)
+    FP = FP1(1)
+  END SUBROUTINE W3KOKKOS_SPR6
+  !/ ------------------------------------------------------------------- /
+  !> W3SIN6 (w3src6md.F90:298) on Kokkos, same dummy list. Where W3SIN6,
+  !> LFACTOR or TAU_WAVE_ATMOS stop, this writes their FORMAT to NDSE and
+  !> stops with the same EXTCDE code. Where LFACTOR reaches ITERMAX
+  !> (:1093-1094) the Fortran writes a warning to NDST from values the
+  !> kernel does not return (TAU, TAU_TOT, ERR, TAU_NND): that point is
+  !> computed again by W3SIN6 itself, which writes the warning and gives
+  !> the outputs.
+  SUBROUTINE W3KOKKOS_SIN6 ( A, CG, WN2, UABS, USTAR, USDIR, CD, DAIR, &
+       TAUWX, TAUWY, TAUNWX, TAUNWY, CHARN, S, D )
+    USE W3GDATMD, ONLY: NK, NSPEC, IGRID
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    USE W3SRC6MD, ONLY: W3SIN6
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: A(NSPEC), CG(NK), WN2(NSPEC)
+    REAL, INTENT(IN)        :: UABS, USTAR, USDIR, CD, DAIR
+    REAL, INTENT(OUT)       :: TAUWX, TAUWY, TAUNWX, TAUNWY, CHARN
+    REAL, INTENT(OUT)       :: S(NSPEC), D(NSPEC)
+    REAL(C_FLOAT)           :: UA1(1), US1(1), UD1(1), CD1(1), DA1(1),  &
+                               TX1(1), TY1(1), TNX1(1), TNY1(1), CH1(1)
+    INTEGER(C_INT)          :: RC, INFO(2), IERR
+    UA1(1) = UABS
+    US1(1) = USTAR
+    UD1(1) = USDIR
+    CD1(1) = CD
+    DA1(1) = DAIR
+    !$OMP CRITICAL (WW_KOKKOS_ST6)
+    RC = WW_SIN6 ( IGRID, 1, A, CG, WN2, UA1, US1, UD1, CD1, DA1, TX1,  &
+         TY1, TNX1, TNY1, CH1, S, D, INFO )
+    IERR = WW_ST6_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_ST6)
+    CALL ST6_CHECK ( 'W3SIN6', IERR )
+    SELECT CASE ( RC )
+    CASE ( ST6_C_IKN )
+      WRITE (NDSE,6061) INFO(1), INFO(2)
+      CALL EXTCDE ( 2 )
+    CASE ( ST6_C_LF_IK10HZ )
+      WRITE (NDSE,6062) INFO(1), INFO(2)
+      CALL EXTCDE ( 2 )
+    CASE ( ST6_C_LF_MK10HZ )
+      WRITE (NDSE,6063) INFO(1), INFO(2)
+      CALL EXTCDE ( 3 )
+    CASE ( ST6_C_TWA_MK10HZ )
+      WRITE (NDSE,6064) INFO(1), INFO(2)
+      CALL EXTCDE ( 3 )
+    CASE ( ST6_C_LF_ITERMAX )
+      CALL W3SIN6 ( A, CG, WN2, UABS, USTAR, USDIR, CD, DAIR, TAUWX,    &
+           TAUWY, TAUNWX, TAUNWY, CHARN, S, D )
+      RETURN
+    END SELECT
+    TAUWX = TX1(1)
+    TAUWY = TY1(1)
+    TAUNWX = TNX1(1)
+    TAUNWY = TNY1(1)
+    CHARN = CH1(1)
+    ! The FORMATs of w3src6md.F90:534-535, :1127-1130, :1322-1323, verbatim.
+6061 FORMAT (' *** WAVEWATCH III ERROR IN W3SIN6 : '/ &
+       '     INDEX ARRAY DIM MISMATCH SIZE(IKN)=',I4,' .NE. NK=',I4)
+6062 FORMAT (' *** WAVEWATCH III ERROR IN W3SIN6 LFACTOR: '/ &
+       '     INDEX ARRAY DIM MISMATCH SIZE(IKN)=',I4,' .NE. NK=',I4)
+6063 FORMAT (' *** WAVEWATCH III ERROR IN W3SIN6 LFACTOR: '/ &
+       '     ARRAY SIZE MISMATCH MK=',I4,' .NE. NK=',I4)
+6064 FORMAT (' *** WAVEWATCH III ERROR IN W3SIN6 TAU_WAV_ATMOS : '/ &
+       '     ARRAY SIZE MISMATCH MK=',I4,' .NE. NK=',I4)
+  END SUBROUTINE W3KOKKOS_SIN6
+  !/ ------------------------------------------------------------------- /
+  !> W3SDS6 (w3src6md.F90:566) on Kokkos, same dummy list. Where W3SDS6
+  !> stops (SIZE(IKN) /= NK, :699-702) this writes its FORMAT 601 and
+  !> stops with the same EXTCDE(2). FORMAT of w3src6md.F90:765-766, verbatim.
+  SUBROUTINE W3KOKKOS_SDS6 ( A, CG, WN, S, D )
+    USE W3GDATMD, ONLY: NK, NSPEC, IGRID
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: A(NSPEC), CG(NK), WN(NK)
+    REAL, INTENT(OUT)       :: S(NSPEC), D(NSPEC)
+    INTEGER(C_INT)          :: RC, INFO(2), IERR
+    !$OMP CRITICAL (WW_KOKKOS_ST6)
+    RC = WW_SDS6 ( IGRID, 1, A, CG, WN, S, D, INFO )
+    IERR = WW_ST6_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_ST6)
+    CALL ST6_CHECK ( 'W3SDS6', IERR )
+    IF ( RC == ST6_C_IKN ) THEN
+      WRITE (NDSE,6065) INFO(1), INFO(2)
+      CALL EXTCDE ( 2 )
+    END IF
+6065 FORMAT (' *** WAVEWATCH III ERROR IN W3SDS6 : '/ &
+       '     INDEX ARRAY DIM MISMATCH SIZE(IKN)=',I4,' .NE. NK=',I4)
+  END SUBROUTINE W3KOKKOS_SDS6
 #endif
   !/ ------------------------------------------------------------------- /
   !/

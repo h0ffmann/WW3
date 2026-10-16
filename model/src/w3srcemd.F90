@@ -610,6 +610,8 @@ CONTAINS
     USE W3GDATMD, ONLY : SWL6S6
 #ifdef W3_KOKKOS
     USE W3KOKKOSMD, ONLY: KOKKOS_SWL6, W3KOKKOS_SWL6
+    USE W3KOKKOSMD, ONLY: KOKKOS_SPR6, KOKKOS_SIN6, KOKKOS_SDS6,       &
+         W3KOKKOS_SPR6, W3KOKKOS_SIN6, W3KOKKOS_SDS6
 #endif
 #endif
 #ifdef W3_NL1
@@ -1283,7 +1285,15 @@ CONTAINS
     TWS = 1./FMEANWS
 #endif
 #ifdef W3_ST6
+#ifdef W3_KOKKOS
+    IF ( KOKKOS_SPR6 ) THEN
+      CALL W3KOKKOS_SPR6 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX, FP)
+    ELSE
+      CALL W3SPR6 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX, FP)
+    END IF
+#else
     CALL W3SPR6 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX, FP)
+#endif
 #endif
     !
     ! 1.c2 Stores the initial data
@@ -1494,8 +1504,18 @@ CONTAINS
 #endif
 
 #ifdef W3_ST6
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SIN6 ) THEN
+        CALL W3KOKKOS_SIN6 ( SPEC, CG1, WN2, U10ABS, USTAR, USTDIR, CD,  &
+             DAIR, TAUWX, TAUWY, TAUWAX, TAUWAY, CHARN, VSIN, VDIN )
+      ELSE
+        CALL W3SIN6 ( SPEC, CG1, WN2, U10ABS, USTAR, USTDIR, CD, DAIR, &
+             TAUWX, TAUWY, TAUWAX, TAUWAY, CHARN, VSIN, VDIN )
+      END IF
+#else
       CALL W3SIN6 ( SPEC, CG1, WN2, U10ABS, USTAR, USTDIR, CD, DAIR, &
            TAUWX, TAUWY, TAUWAX, TAUWAY, CHARN, VSIN, VDIN )
+#endif
 #endif
       !
       ! 2.b Nonlinear interactions.
@@ -1611,7 +1631,15 @@ CONTAINS
 #endif
 
 #ifdef W3_ST6
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SDS6 ) THEN
+        CALL W3KOKKOS_SDS6 ( SPEC, CG1, WN1, VSDS, VDDS )
+      ELSE
+        CALL W3SDS6 ( SPEC, CG1, WN1,                   VSDS, VDDS )
+      END IF
+#else
       CALL W3SDS6 ( SPEC, CG1, WN1,                   VSDS, VDDS )
+#endif
 #endif
       !
 #ifdef W3_PDLIB
@@ -2242,7 +2270,15 @@ CONTAINS
 #endif
 #endif
 #ifdef W3_ST6
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SPR6 ) THEN
+        CALL W3KOKKOS_SPR6 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX, FP)
+      ELSE
+        CALL W3SPR6 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX, FP)
+      END IF
+#else
       CALL W3SPR6 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX, FP)
+#endif
 #endif
       !
 #ifdef W3_FLX2
