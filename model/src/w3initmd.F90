@@ -438,8 +438,10 @@ CONTAINS
     USE W3GDATMD, ONLY: FSTOTALIMP, FSTOTALEXP
 #ifdef W3_KOKKOS
     USE W3KOKKOSMD
+#ifdef W3_NL1
     USE W3GDATMD, ONLY: XFR, DTH, LAM, SNLC1, KDCON, KDMN,            &
          SNLS1, SNLS2, SNLS3, FACHFE
+#endif
 #endif
     USE W3PARALL, ONLY: INIT_GET_JSEA_ISPROC, INIT_GET_ISEA
 #ifdef W3_TIMINGS
@@ -751,6 +753,7 @@ CONTAINS
     IERR_K = WW_KOKKOS_INIT ( -1 )
     IF ( IERR_K /= 0 ) CALL EXTCDE ( 1 )
     CALL W3KOKKOS_SETUP
+#ifdef W3_NL1
     IF ( KOKKOS_SNL1 ) THEN
       ! SIG(1:NK), not SIG: W3GDATMD allocates SIG(0:MK+1) and the C dummy is
       ! assumed-size, so the bare name would pass SIG(0). Not SIG(1) either:
@@ -761,6 +764,15 @@ CONTAINS
       IF ( IERR_K /= 0 ) CALL EXTCDE ( 1 )
       WRITE (NDSO,'(A)') '  Kokkos DIA (W3SNL1) enabled.'
     END IF
+#endif
+#ifdef W3_ST4
+    IF ( KOKKOS_SDS4 .OR. KOKKOS_SIN4 .OR. KOKKOS_SPR4 ) THEN
+      CALL W3KOKKOS_ST4_SETUP ( IMOD )
+      WRITE (NDSO,'(A,3(A,L1))') '  Kokkos ST4 (W3SDS4 W3SIN4 W3SPR4) '// &
+           'enabled:', ' SDS4=', KOKKOS_SDS4, ' SIN4=', KOKKOS_SIN4,     &
+           ' SPR4=', KOKKOS_SPR4
+    END IF
+#endif
 #endif
     IF (GTYPE .eq. UNGTYPE) THEN
       CALL SPATIAL_GRID

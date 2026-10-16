@@ -569,6 +569,10 @@ CONTAINS
 #ifdef W3_ST4
     USE W3SRC4MD, ONLY : W3SPR4, W3SIN4, W3SDS4
     USE W3GDATMD, ONLY : ZZWND, FFXFM, FFXPM, FFXFA, SINTAILPAR
+#if defined(W3_KOKKOS) && !defined(W3_FLX5)
+    USE W3KOKKOSMD, ONLY: KOKKOS_SDS4, KOKKOS_SIN4, KOKKOS_SPR4,      &
+         W3KOKKOS_SDS4, W3KOKKOS_SIN4, W3KOKKOS_SPR4
+#endif
 #endif
 #ifdef W3_ST6
     USE W3SRC6MD, ONLY : W3SPR6, W3SIN6, W3SDS6
@@ -716,7 +720,7 @@ CONTAINS
          MWXFINISH, MWYFINISH, A1BAND, B1BAND,     &
          COSI(2)
     REAL :: SPECINIT(NSPEC), SPEC2(NSPEC)
-#ifdef W3_KOKKOS
+#if defined(W3_KOKKOS) && defined(W3_NL1)
     ! The shim takes KDMEAN as an array of NPTS; here NPTS is 1.
     REAL    :: KDM_K(1)
     INTEGER :: IERR_K
@@ -1088,6 +1092,17 @@ CONTAINS
       USTAR=0.
       USTDIR=0.
     ELSE
+#if defined(W3_KOKKOS) && !defined(W3_FLX5)
+      IF ( KOKKOS_SPR4 ) THEN
+        CALL W3KOKKOS_SPR4 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEAN1, WNMEAN, &
+             AMAX, U10ABS, U10DIR, USTAR, USTDIR,                     &
+             TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+      ELSE
+        CALL W3SPR4 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEAN1, WNMEAN, &
+             AMAX, U10ABS, U10DIR, USTAR, USTDIR,             &
+             TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+      END IF
+#else
       CALL W3SPR4 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEAN1, WNMEAN, &
            AMAX, U10ABS, U10DIR,                           &
 #ifdef W3_FLX5
@@ -1095,6 +1110,7 @@ CONTAINS
 #endif
            USTAR, USTDIR,                                  &
            TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+#endif
 #endif
 
 #if defined(W3_DEBUGSRC) && defined(W3_ST4)
@@ -1108,9 +1124,23 @@ CONTAINS
 #endif
 
 #ifdef W3_ST4
+#if defined(W3_KOKKOS) && !defined(W3_FLX5)
+      IF (SINTAILPAR(4).GT.0.5) THEN
+        IF ( KOKKOS_SIN4 ) THEN
+          CALL W3KOKKOS_SIN4 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS, &
+               U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,         &
+               VSIN, VDIN, LLWS )
+        ELSE
+          CALL W3SIN4 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,    &
+               U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,  &
+               VSIN, VDIN, LLWS, IX, IY, BRLAMBDA )
+        END IF
+      END IF
+#else
       IF (SINTAILPAR(4).GT.0.5) CALL W3SIN4 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,       &
            U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,       &
            VSIN, VDIN, LLWS, IX, IY, BRLAMBDA )
+#endif
     END IF
 #endif
 #if defined(W3_DEBUGSRC) && defined(W3_ST4)
@@ -1127,6 +1157,17 @@ CONTAINS
 #endif
 
 #ifdef W3_ST4
+#if defined(W3_KOKKOS) && !defined(W3_FLX5)
+    IF ( KOKKOS_SPR4 ) THEN
+      CALL W3KOKKOS_SPR4 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEAN1, WNMEAN, &
+           AMAX, U10ABS, U10DIR, USTAR, USTDIR,                     &
+           TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+    ELSE
+      CALL W3SPR4 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEAN1, WNMEAN, &
+           AMAX, U10ABS, U10DIR, USTAR, USTDIR,             &
+           TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+    END IF
+#else
     CALL W3SPR4 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEAN1, WNMEAN, &
          AMAX, U10ABS, U10DIR,                         &
 #ifdef W3_FLX5
@@ -1134,6 +1175,7 @@ CONTAINS
 #endif
          USTAR, USTDIR,                                &
          TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+#endif
     TWS = 1./FMEANWS
 #endif
 #ifdef W3_ST6
@@ -1247,9 +1289,21 @@ CONTAINS
            ICE, VSIN, VDIN, LLWS, IX, IY )
 #endif
 #ifdef W3_ST4
+#if defined(W3_KOKKOS) && !defined(W3_FLX5)
+      IF ( KOKKOS_SIN4 ) THEN
+        CALL W3KOKKOS_SIN4 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS, &
+             U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,         &
+             VSIN, VDIN, LLWS )
+      ELSE
+        CALL W3SIN4 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,    &
+             U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,  &
+             VSIN, VDIN, LLWS, IX, IY, BRLAMBDA )
+      END IF
+#else
       CALL W3SIN4 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,       &
            U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,       &
            VSIN, VDIN, LLWS, IX, IY, BRLAMBDA )
+#endif
 #endif
 
 #if defined(W3_DEBUGSRC) && defined(W3_ST4)
@@ -1330,8 +1384,18 @@ CONTAINS
            USTAR, USTDIR, DEPTH, VSDS, VDDS, IX, IY )
 #endif
 #ifdef W3_ST4
+#if defined(W3_KOKKOS) && !defined(W3_FLX5)
+      IF ( KOKKOS_SDS4 ) THEN
+        CALL W3KOKKOS_SDS4 ( SPEC, WN1, CG1, USTAR, USTDIR, DEPTH, DAIR, &
+             VSDS, VDDS, BRLAMBDA, WHITECAP, DLWMEAN )
+      ELSE
+        CALL W3SDS4 ( SPEC, WN1, CG1, USTAR, USTDIR, DEPTH, DAIR, VSDS, &
+             VDDS, IX, IY, BRLAMBDA, WHITECAP, DLWMEAN )
+      END IF
+#else
       CALL W3SDS4 ( SPEC, WN1, CG1, USTAR, USTDIR, DEPTH, DAIR, VSDS,   &
            VDDS, IX, IY, BRLAMBDA, WHITECAP, DLWMEAN )
+#endif
 #endif
 #if defined(W3_DEBUGSRC) && defined(W3_ST4)
       IF (IX == DEBUG_NODE) THEN
@@ -1905,6 +1969,17 @@ CONTAINS
            TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS)
 #endif
 #ifdef W3_ST4
+#if defined(W3_KOKKOS) && !defined(W3_FLX5)
+      IF ( KOKKOS_SPR4 ) THEN
+        CALL W3KOKKOS_SPR4 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEAN1, WNMEAN, &
+             AMAX, U10ABS, U10DIR, USTAR, USTDIR,                     &
+             TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+      ELSE
+        CALL W3SPR4 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEAN1, WNMEAN, &
+             AMAX, U10ABS, U10DIR, USTAR, USTDIR,             &
+             TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+      END IF
+#else
       CALL W3SPR4 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEAN1, WNMEAN,&
            AMAX, U10ABS, U10DIR,                          &
 #ifdef W3_FLX5
@@ -1912,6 +1987,7 @@ CONTAINS
 #endif
            USTAR, USTDIR,                                 &
            TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+#endif
 #endif
 #ifdef W3_ST6
       CALL W3SPR6 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX, FP)
@@ -2034,9 +2110,34 @@ CONTAINS
            ICE, VSIN, VDIN, LLWS, IX, IY )
 #endif
 #ifdef W3_ST4
+#if defined(W3_KOKKOS) && !defined(W3_FLX5)
+      IF ( KOKKOS_SIN4 ) THEN
+        CALL W3KOKKOS_SIN4 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS, &
+             U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,         &
+             VSIN, VDIN, LLWS )
+      ELSE
+        CALL W3SIN4 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,    &
+             U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,  &
+             VSIN, VDIN, LLWS, IX, IY, BRLAMBDA )
+      END IF
+#else
       CALL W3SIN4 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,      &
            U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY, &
            VSIN, VDIN, LLWS, IX, IY, BRLAMBDA )
+#endif
+#if defined(W3_KOKKOS) && !defined(W3_FLX5)
+      IF (SINTAILPAR(4).LT.0.5) THEN
+        IF ( KOKKOS_SPR4 ) THEN
+          CALL W3KOKKOS_SPR4 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEAN1, WNMEAN, &
+               AMAX, U10ABS, U10DIR, USTAR, USTDIR,                     &
+               TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+        ELSE
+          CALL W3SPR4 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEAN1, WNMEAN, &
+               AMAX, U10ABS, U10DIR, USTAR, USTDIR,             &
+               TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+        END IF
+      END IF
+#else
       IF (SINTAILPAR(4).LT.0.5) CALL W3SPR4 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEAN1, WNMEAN,&
            AMAX, U10ABS, U10DIR,                          &
 #ifdef W3_FLX5
@@ -2044,6 +2145,7 @@ CONTAINS
 #endif
            USTAR, USTDIR,                                 &
            TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS, DLWMEAN)
+#endif
 #endif
 
       !

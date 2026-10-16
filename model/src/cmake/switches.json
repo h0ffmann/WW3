@@ -859,9 +859,6 @@
                 "name": "KOKKOS",
                 "build_files": [
                     "w3kokkosmd.F90"
-                ],
-                "requires": [
-                    "NL1"
                 ]
             }
         ]
