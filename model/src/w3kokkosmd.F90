@@ -404,6 +404,87 @@ MODULE W3KOKKOSMD
 #endif
      !
   END INTERFACE
+#ifdef W3_ST1
+  !/
+  !> Kokkos W3SPR1, W3SIN1, W3SDS1: WW_KOKKOS_SPR1/SIN1/SDS1=1. Set by
+  !> W3KOKKOS_ST1_SETUP, .FALSE. until then.
+  LOGICAL :: KOKKOS_SPR1 = .FALSE., KOKKOS_SIN1 = .FALSE.,             &
+             KOKKOS_SDS1 = .FALSE.
+  !/
+  !/ ST1 packet indices and array ids, 0-based as in ww_kokkos_c.hpp
+  !/ ("ST1"): Fortran RPAR(ST1_R_X+1).
+  !/
+  INTEGER, PARAMETER :: ST1_R_FTE = 0, ST1_R_FTF = 1, ST1_R_FTWN = 2,  &
+       ST1_R_SINC1 = 3, ST1_R_SDSC1 = 4, ST1_NRPAR = 5
+  INTEGER, PARAMETER :: ST1_I_NK = 0, ST1_I_NTH = 1, ST1_I_NSPEC = 2,  &
+       ST1_NIPAR = 3
+  INTEGER, PARAMETER :: ST1_A_SIG = 0, ST1_A_DDEN = 1, ST1_A_SIG2 = 2, &
+       ST1_A_ECOS = 3, ST1_A_ESIN = 4
+  !/
+  INTERFACE
+     !
+     INTEGER(C_INT) FUNCTION WW_ST1_INIT ( IGRID, RPAR, NR, IPAR, NI )   &
+          BIND(C, NAME='ww_st1_init')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NR, NI
+       REAL(C_FLOAT),  INTENT(IN)      :: RPAR(*)
+       INTEGER(C_INT), INTENT(IN)      :: IPAR(*)
+     END FUNCTION WW_ST1_INIT
+     !
+     INTEGER(C_INT) FUNCTION WW_ST1_SET_REAL ( IGRID, ID, X, RANK, LB,   &
+          EXT ) BIND(C, NAME='ww_st1_set_real')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, ID, RANK
+       REAL(C_FLOAT),  INTENT(IN)      :: X(*)
+       INTEGER(C_INT), INTENT(IN)      :: LB(*), EXT(*)
+     END FUNCTION WW_ST1_SET_REAL
+     !
+     INTEGER(C_INT) FUNCTION WW_ST1_COMMIT ( IGRID )                     &
+          BIND(C, NAME='ww_st1_commit')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE           :: IGRID
+     END FUNCTION WW_ST1_COMMIT
+     !
+     SUBROUTINE WW_SPR1 ( IGRID, NPTS, A, CG, WN, EMEAN, FMEAN, WNMEAN,  &
+          AMAX ) BIND(C, NAME='ww_spr1')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: A(*), CG(*), WN(*)
+       REAL(C_FLOAT),  INTENT(OUT)     :: EMEAN(*), FMEAN(*), WNMEAN(*), &
+                                          AMAX(*)
+     END SUBROUTINE WW_SPR1
+     !
+     SUBROUTINE WW_SIN1 ( IGRID, NPTS, A, K, USTAR, USDIR, S, D )        &
+          BIND(C, NAME='ww_sin1')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: A(*), K(*), USTAR(*), USDIR(*)
+       REAL(C_FLOAT),  INTENT(OUT)     :: S(*), D(*)
+     END SUBROUTINE WW_SIN1
+     !
+     SUBROUTINE WW_SDS1 ( IGRID, NPTS, A, K, EMEAN, FMEAN, WNMEAN, S, D ) &
+          BIND(C, NAME='ww_sds1')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: A(*), K(*), EMEAN(*), FMEAN(*),&
+                                          WNMEAN(*)
+       REAL(C_FLOAT),  INTENT(OUT)     :: S(*), D(*)
+     END SUBROUTINE WW_SDS1
+     !
+     !> WHICH = 1 SPR1, 2 SIN1, 3 SDS1.
+     INTEGER(C_INT) FUNCTION WW_ST1_ENABLED ( WHICH )                    &
+          BIND(C, NAME='ww_st1_enabled')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE           :: WHICH
+     END FUNCTION WW_ST1_ENABLED
+     !
+     INTEGER(C_INT) FUNCTION WW_ST1_LAST_ERROR ( )                       &
+          BIND(C, NAME='ww_st1_last_error')
+       IMPORT :: C_INT
+     END FUNCTION WW_ST1_LAST_ERROR
+     !
+  END INTERFACE
+#endif
   !/
 CONTAINS
   !/ ------------------------------------------------------------------- /
@@ -946,6 +1027,131 @@ CONTAINS
     CALL SRCE_CHECK ( 'W3SRCE', IERR )
     SHAVEIO = ( SH /= 0_C_INT )
   END SUBROUTINE W3KOKKOS_SRCE
+#endif
+#ifdef W3_ST1
+  !/ ------------------------------------------------------------------- /
+  !> @brief Read the ST1 run-time switches and, when one is on, give the
+  !> shim grid IMOD's ST1 scalars and arrays.
+  !>
+  !> Call from W3INIT after W3IOGR and WW_KOKKOS_INIT, with W3SETG done for
+  !> IMOD. The flags are read here, not in W3KOKKOS_SETUP, so the ST1 block
+  !> stays under one switch.
+  !>
+  SUBROUTINE W3KOKKOS_ST1_SETUP ( IMOD )
+    USE W3GDATMD, ONLY: NK, NTH, NSPEC, FTE, FTF, FTWN, SINC1, SDSC1,  &
+         SIG, DDEN, SIG2, ECOS, ESIN
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: IMOD
+    REAL(C_FLOAT)           :: RPAR(ST1_NRPAR)
+    INTEGER(C_INT)          :: IPAR(ST1_NIPAR)
+    !
+    KOKKOS_SPR1 = ( WW_ST1_ENABLED(1_C_INT) == 1_C_INT )
+    KOKKOS_SIN1 = ( WW_ST1_ENABLED(2_C_INT) == 1_C_INT )
+    KOKKOS_SDS1 = ( WW_ST1_ENABLED(3_C_INT) == 1_C_INT )
+    IF ( .NOT. ( KOKKOS_SPR1 .OR. KOKKOS_SIN1 .OR. KOKKOS_SDS1 ) ) RETURN
+    !
+    RPAR(ST1_R_FTE+1)   = FTE
+    RPAR(ST1_R_FTF+1)   = FTF
+    RPAR(ST1_R_FTWN+1)  = FTWN
+    RPAR(ST1_R_SINC1+1) = SINC1
+    RPAR(ST1_R_SDSC1+1) = SDSC1
+    IPAR(ST1_I_NK+1)    = NK
+    IPAR(ST1_I_NTH+1)   = NTH
+    IPAR(ST1_I_NSPEC+1) = NSPEC
+    !
+    CALL ST1_CHECK ( 'WW_ST1_INIT',                                     &
+         WW_ST1_INIT ( IMOD, RPAR, ST1_NRPAR, IPAR, ST1_NIPAR ) )
+    ! Whole arrays with their LBOUND: SIG is SIG(0:MK+1) (w3gdatmd.F90:2066);
+    ! the shim keeps elements 1..NK or 1..NSPEC.
+    CALL ST1_SET_R1 ( IMOD, ST1_A_SIG, SIG, LBOUND(SIG) )
+    CALL ST1_SET_R1 ( IMOD, ST1_A_DDEN, DDEN, LBOUND(DDEN) )
+    CALL ST1_SET_R1 ( IMOD, ST1_A_SIG2, SIG2, LBOUND(SIG2) )
+    CALL ST1_SET_R1 ( IMOD, ST1_A_ECOS, ECOS, LBOUND(ECOS) )
+    CALL ST1_SET_R1 ( IMOD, ST1_A_ESIN, ESIN, LBOUND(ESIN) )
+    CALL ST1_CHECK ( 'WW_ST1_COMMIT', WW_ST1_COMMIT ( IMOD ) )
+    !
+  END SUBROUTINE W3KOKKOS_ST1_SETUP
+  !/ ------------------------------------------------------------------- /
+  !> Stop the model on a non-zero status of the shim.
+  SUBROUTINE ST1_CHECK ( WHAT, IERR )
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    CHARACTER(LEN=*), INTENT(IN) :: WHAT
+    INTEGER(C_INT), INTENT(IN)   :: IERR
+    IF ( IERR /= 0_C_INT ) THEN
+      WRITE (NDSE,'(A,I0)') '*** WAVEWATCH III ERROR IN W3KOKKOSMD : '// &
+           'KOKKOS '//WHAT//' FAILED, CODE ', IERR
+      CALL EXTCDE ( 1 )
+    END IF
+  END SUBROUTINE ST1_CHECK
+  !/ ------------------------------------------------------------------- /
+  !> Register one array. X is assumed-shape, so its own bounds are 1-based:
+  !> the actual's LBOUND travels in LB, its SHAPE in SHAPE(X).
+  SUBROUTINE ST1_SET_R1 ( IMOD, ID, X, LB )
+    INTEGER, INTENT(IN)     :: IMOD, ID, LB(1)
+    REAL, INTENT(IN)        :: X(:)
+    CALL ST1_CHECK ( 'WW_ST1_SET_REAL', WW_ST1_SET_REAL ( IMOD, ID, X, &
+         1, INT(LB,C_INT), INT(SHAPE(X),C_INT) ) )
+  END SUBROUTINE ST1_SET_R1
+  !/ ------------------------------------------------------------------- /
+  !> W3SPR1 on Kokkos for one point, the argument list of W3SPR1
+  !> (w3src1md.F90:87). Serialised: the shim's contexts are unlocked and
+  !> W3SRCE runs inside !$OMP PARALLEL under W3_OMPG / W3_OMP0.
+  SUBROUTINE W3KOKKOS_SPR1 ( A, CG, WN, EMEAN, FMEAN, WNMEAN, AMAX )
+    USE W3GDATMD, ONLY: NK, NTH, IGRID
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: A(NTH,NK), CG(NK), WN(NK)
+    REAL, INTENT(OUT)       :: EMEAN, FMEAN, WNMEAN, AMAX
+    REAL(C_FLOAT)           :: EM(1), FM(1), WM(1), AM(1)
+    INTEGER(C_INT)          :: IERR
+    !$OMP CRITICAL (WW_KOKKOS_ST1)
+    CALL WW_SPR1 ( IGRID, 1, A, CG, WN, EM, FM, WM, AM )
+    IERR = WW_ST1_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_ST1)
+    CALL ST1_CHECK ( 'W3SPR1', IERR )
+    EMEAN = EM(1)
+    FMEAN = FM(1)
+    WNMEAN = WM(1)
+    AMAX = AM(1)
+  END SUBROUTINE W3KOKKOS_SPR1
+  !/ ------------------------------------------------------------------- /
+  !> W3SIN1 on Kokkos for one point, the argument list of W3SIN1
+  !> (w3src1md.F90:255).
+  SUBROUTINE W3KOKKOS_SIN1 ( A, K, USTAR, USDIR, S, D )
+    USE W3GDATMD, ONLY: NSPEC, IGRID
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: A(NSPEC), K(NSPEC), USTAR, USDIR
+    REAL, INTENT(OUT)       :: S(NSPEC), D(NSPEC)
+    REAL(C_FLOAT)           :: US(1), UD(1)
+    INTEGER(C_INT)          :: IERR
+    US(1) = USTAR
+    UD(1) = USDIR
+    !$OMP CRITICAL (WW_KOKKOS_ST1)
+    CALL WW_SIN1 ( IGRID, 1, A, K, US, UD, S, D )
+    IERR = WW_ST1_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_ST1)
+    CALL ST1_CHECK ( 'W3SIN1', IERR )
+  END SUBROUTINE W3KOKKOS_SIN1
+  !/ ------------------------------------------------------------------- /
+  !> W3SDS1 on Kokkos for one point, the argument list of W3SDS1
+  !> (w3src1md.F90:432).
+  SUBROUTINE W3KOKKOS_SDS1 ( A, K, EMEAN, FMEAN, WNMEAN, S, D )
+    USE W3GDATMD, ONLY: NSPEC, IGRID
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: A(NSPEC), K(NSPEC), EMEAN, FMEAN, WNMEAN
+    REAL, INTENT(OUT)       :: S(NSPEC), D(NSPEC)
+    REAL(C_FLOAT)           :: EM(1), FM(1), WM(1)
+    INTEGER(C_INT)          :: IERR
+    EM(1) = EMEAN
+    FM(1) = FMEAN
+    WM(1) = WNMEAN
+    !$OMP CRITICAL (WW_KOKKOS_ST1)
+    CALL WW_SDS1 ( IGRID, 1, A, K, EM, FM, WM, S, D )
+    IERR = WW_ST1_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_ST1)
+    CALL ST1_CHECK ( 'W3SDS1', IERR )
+  END SUBROUTINE W3KOKKOS_SDS1
 #endif
   !/ ------------------------------------------------------------------- /
   !/

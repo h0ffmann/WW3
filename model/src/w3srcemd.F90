@@ -560,6 +560,10 @@ CONTAINS
 #endif
 #ifdef W3_ST1
     USE W3SRC1MD
+#ifdef W3_KOKKOS
+    USE W3KOKKOSMD, ONLY: KOKKOS_SPR1, KOKKOS_SIN1, KOKKOS_SDS1,      &
+         W3KOKKOS_SPR1, W3KOKKOS_SIN1, W3KOKKOS_SDS1
+#endif
 #endif
 #ifdef W3_ST2
     USE W3SRC2MD
@@ -1061,7 +1065,15 @@ CONTAINS
     FP     = 0.85 * FMEAN
 #endif
 #ifdef W3_ST1
+#ifdef W3_KOKKOS
+    IF ( KOKKOS_SPR1 ) THEN
+      CALL W3KOKKOS_SPR1 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX)
+    ELSE
+      CALL W3SPR1 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX)
+    END IF
+#else
     CALL W3SPR1 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX)
+#endif
     FP     = 0.85 * FMEAN
 #endif
 #ifdef W3_ST2
@@ -1288,7 +1300,15 @@ CONTAINS
 #endif
       !
 #ifdef W3_ST1
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SIN1 ) THEN
+        CALL W3KOKKOS_SIN1 ( SPEC, WN2, USTAR, U10DIR , VSIN, VDIN )
+      ELSE
+        CALL W3SIN1 ( SPEC, WN2, USTAR, U10DIR ,        VSIN, VDIN )
+      END IF
+#else
       CALL W3SIN1 ( SPEC, WN2, USTAR, U10DIR ,        VSIN, VDIN )
+#endif
 #endif
 #ifdef W3_ST2
       CALL W3SIN2 ( SPEC, CG1, WN2, U10ABS, U10DIR, CD, Z0,        &
@@ -1385,7 +1405,15 @@ CONTAINS
       ! 2.c1   as in source term package
       !
 #ifdef W3_ST1
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SDS1 ) THEN
+        CALL W3KOKKOS_SDS1 ( SPEC, WN2, EMEAN, FMEAN, WNMEAN, VSDS, VDDS )
+      ELSE
+        CALL W3SDS1 ( SPEC, WN2, EMEAN, FMEAN, WNMEAN,  VSDS, VDDS )
+      END IF
+#else
       CALL W3SDS1 ( SPEC, WN2, EMEAN, FMEAN, WNMEAN,  VSDS, VDDS )
+#endif
 #endif
 #ifdef W3_ST2
       CALL W3SDS2 ( SPEC, CG1, WN1, FPI, USTAR, ALPHA,VSDS, VDDS )
@@ -1976,7 +2004,15 @@ CONTAINS
 #endif
 #endif
 #ifdef W3_ST1
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SPR1 ) THEN
+        CALL W3KOKKOS_SPR1 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX)
+      ELSE
+        CALL W3SPR1 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX)
+      END IF
+#else
       CALL W3SPR1 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX)
+#endif
 #endif
 #ifdef W3_ST2
       CALL W3SPR2 (SPEC, CG1, WN1, DEPTH, FPI, U10ABS, USTAR,   &

@@ -781,6 +781,13 @@ CONTAINS
       WRITE (NDSO,'(A)') '  Kokkos ST0 (W3SPR0) enabled.'
     END IF
 #endif
+#ifdef W3_ST1
+    CALL W3KOKKOS_ST1_SETUP ( IMOD )
+    IF ( KOKKOS_SPR1 .OR. KOKKOS_SIN1 .OR. KOKKOS_SDS1 )                    &
+         WRITE (NDSO,'(A,3(A,L1))') '  Kokkos ST1 (W3SPR1 W3SIN1 W3SDS1) '// &
+         'enabled:', ' SPR1=', KOKKOS_SPR1, ' SIN1=', KOKKOS_SIN1,       &
+         ' SDS1=', KOKKOS_SDS1
+#endif
 #if defined(W3_ST4) && defined(W3_NL1)
     IF ( KOKKOS_SRCE ) THEN
       CALL W3KOKKOS_SRCE_SETUP ( IMOD )
