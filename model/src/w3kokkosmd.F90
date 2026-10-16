@@ -112,6 +112,22 @@ MODULE W3KOKKOSMD
   !> Kokkos W3SDS4, W3SIN4, W3SPR4: WW_KOKKOS_SDS4/SIN4/SPR4=1, read likewise.
   LOGICAL :: KOKKOS_SDS4 = .FALSE., KOKKOS_SIN4 = .FALSE.,             &
              KOKKOS_SPR4 = .FALSE.
+  !> Kokkos W3SRCE (with every source term it calls): WW_KOKKOS_SRCE=1.
+  LOGICAL :: KOKKOS_SRCE = .FALSE.
+  !/
+  !/ W3SRCE packet indices, 0-based as in ww_kokkos/srce_params.hpp.
+  !/
+  INTEGER, PARAMETER :: RS_DMIN = 0, RS_DTMAX = 1, RS_DTMIN = 2,       &
+       RS_FACTI1 = 3, RS_FACTI2 = 4, RS_FACHFA = 5, RS_FACP = 6,        &
+       RS_XFLT = 7, RS_XREL = 8, RS_FHMAX = 9, RS_FFXFM = 10,           &
+       RS_FFXPM = 11, RS_FFXFA = 12, RS_ICESCALES = 13,                 &
+       RS_SLNC1 = RS_ICESCALES + 4, RS_FSPM = RS_SLNC1 + 1,             &
+       RS_FSHF = RS_SLNC1 + 2, RS_SBTC1 = RS_SLNC1 + 3,                 &
+       RS_SDBC1 = RS_SLNC1 + 4, RS_SDBC2 = RS_SLNC1 + 5,                &
+       NRSPAR = RS_SLNC1 + 6
+  INTEGER, PARAMETER :: IS_NK = 0, IS_NTH = 1, IS_NSPEC = 2,           &
+       IS_IQTPE = 3, IS_IICEDISP = 4, IS_IC_NUMERICS = 5, IS_FDONLY = 6, &
+       IS_LAB_SWITCH = 7, NISPAR = 8
   !/
   !/ ST4 packet indices, 0-based as in ww_kokkos/st4_params.hpp and
   !/ st4_arrays.hpp: Fortran RPAR(R_X+1). Change them only with those headers.
@@ -271,6 +287,51 @@ MODULE W3KOKKOSMD
                                           DLWMEAN(*)
      END SUBROUTINE WW_SPR4
      !
+     !> W3SRCE. Needs WW_SNL1_INIT and WW_ST4_COMMIT done for IGRID. SIG,
+     !> DDEN are (1:NK), ECOS, ESIN, MAPWN (1:NSPEC); copied.
+     INTEGER(C_INT) FUNCTION WW_SRCE_INIT ( IGRID, RPAR, NR, IPAR, NI,  &
+          SIG, DDEN, ECOS, ESIN, MAPWN ) BIND(C, NAME='ww_srce_init')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NR, NI
+       REAL(C_FLOAT),  INTENT(IN)      :: RPAR(*), SIG(*), DDEN(*),      &
+                                          ECOS(*), ESIN(*)
+       INTEGER(C_INT), INTENT(IN)      :: IPAR(*), MAPWN(*)
+     END FUNCTION WW_SRCE_INIT
+     !
+     !> W3SRCE(srce_direct, ...) for one point, the arguments the lab switch
+     !> reads. SHAVE crosses as INTEGER 0/1. Status in WW_SRCE_LAST_ERROR().
+     SUBROUTINE WW_SRCE ( IGRID, IT, INFLAGS24, FLOGRD57, FLOGRD58,      &
+          SPEC, WN1, CG1, D_INP, U10ABS, U10DIR, AS, ICE, DTG, DAIR,     &
+          COEF, USTAR, USTDIR, TAUWX, TAUWY, DTDYN, FCUT, TAUOX, TAUOY,  &
+          TAUWIX, TAUWIY, TAUWNX, TAUWNY, PHIAW, CHARN, TWS, PHIOC,      &
+          WHITECAP, PHIBBL, TAUBBL, TAUICE, PHICE, TAUOCX, TAUOCY,       &
+          WNMEAN, SHAVE ) BIND(C, NAME='ww_srce')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, IT, INFLAGS24,          &
+                                          FLOGRD57, FLOGRD58
+       REAL(C_FLOAT),  VALUE           :: D_INP, U10ABS, U10DIR, AS,     &
+                                          ICE, DTG, DAIR, COEF
+       REAL(C_FLOAT),  INTENT(IN)      :: WN1(*), CG1(*)
+       REAL(C_FLOAT),  INTENT(INOUT)   :: SPEC(*), USTAR, USTDIR, TAUWX, &
+                                          TAUWY, DTDYN, FCUT, TAUOX,     &
+                                          TAUOY, TAUWIX, TAUWIY, TAUWNX, &
+                                          TAUWNY, PHIAW, CHARN, TWS,     &
+                                          PHIOC, WHITECAP(*), PHIBBL,    &
+                                          TAUBBL(*), TAUICE(*), PHICE,   &
+                                          TAUOCX, TAUOCY, WNMEAN
+       INTEGER(C_INT), INTENT(INOUT)   :: SHAVE
+     END SUBROUTINE WW_SRCE
+     !
+     INTEGER(C_INT) FUNCTION WW_SRCE_ENABLED ( )                         &
+          BIND(C, NAME='ww_srce_enabled')
+       IMPORT :: C_INT
+     END FUNCTION WW_SRCE_ENABLED
+     !
+     INTEGER(C_INT) FUNCTION WW_SRCE_LAST_ERROR ( )                      &
+          BIND(C, NAME='ww_srce_last_error')
+       IMPORT :: C_INT
+     END FUNCTION WW_SRCE_LAST_ERROR
+     !
      !> WHICH = 1 SDS4, 2 SIN4, 3 SPR4, 4 ST4_TABLES.
      INTEGER(C_INT) FUNCTION WW_ST4_ENABLED ( WHICH )                    &
           BIND(C, NAME='ww_st4_enabled')
@@ -300,6 +361,7 @@ CONTAINS
     KOKKOS_SDS4 = ( WW_ST4_ENABLED(1_C_INT) == 1_C_INT )
     KOKKOS_SIN4 = ( WW_ST4_ENABLED(2_C_INT) == 1_C_INT )
     KOKKOS_SPR4 = ( WW_ST4_ENABLED(3_C_INT) == 1_C_INT )
+    KOKKOS_SRCE = ( WW_SRCE_ENABLED() == 1_C_INT )
     !
   END SUBROUTINE W3KOKKOS_SETUP
 #ifdef W3_ST4
@@ -598,6 +660,156 @@ CONTAINS
     FMEANWS = FWS(1)
     DLWMEAN = DL(1)
   END SUBROUTINE W3KOKKOS_SPR4
+#endif
+#if defined(W3_ST4) && defined(W3_NL1)
+  !/ ------------------------------------------------------------------- /
+  !> @brief Give the shim grid IMOD's W3SRCE scalars and arrays.
+  !>
+  !> Call from W3INIT after WW_SNL1_INIT and W3KOKKOS_ST4_SETUP for IMOD: the
+  !> Kokkos W3SRCE calls the Kokkos DIA and ST4 with those contexts.
+  !>
+  SUBROUTINE W3KOKKOS_SRCE_SETUP ( IMOD )
+    USE W3GDATMD, ONLY: NK, NTH, NSPEC, SIG, DDEN, ECOS, ESIN, MAPWN,  &
+         DMIN, DTMAX, DTMIN, FACTI1, FACTI2, FACHFA, FACP, XFLT, XREL,  &
+         FHMAX, FFXFM, FFXPM, FFXFA, ICESCALES, IICEDISP, IC_NUMERICS,  &
+         SLNC1, FSPM, FSHF, SBTC1, SDBC1, SDBC2, FDONLY, IQTPE
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: IMOD
+    REAL(C_FLOAT)           :: RPAR(NRSPAR)
+    INTEGER(C_INT)          :: IPAR(NISPAR)
+    INTEGER                 :: J
+    !
+    RPAR = 0.
+    IPAR = 0
+    RPAR(RS_DMIN+1)   = DMIN
+    RPAR(RS_DTMAX+1)  = DTMAX
+    RPAR(RS_DTMIN+1)  = DTMIN
+    RPAR(RS_FACTI1+1) = FACTI1
+    RPAR(RS_FACTI2+1) = FACTI2
+    RPAR(RS_FACHFA+1) = FACHFA
+    RPAR(RS_FACP+1)   = FACP
+    RPAR(RS_XFLT+1)   = XFLT
+    RPAR(RS_XREL+1)   = XREL
+    RPAR(RS_FHMAX+1)  = FHMAX
+    RPAR(RS_FFXFM+1)  = FFXFM
+    RPAR(RS_FFXPM+1)  = FFXPM
+    RPAR(RS_FFXFA+1)  = FFXFA
+    DO J = 1, 4
+      RPAR(RS_ICESCALES+J) = ICESCALES(J)
+    END DO
+    RPAR(RS_SLNC1+1)  = SLNC1
+    RPAR(RS_FSPM+1)   = FSPM
+    RPAR(RS_FSHF+1)   = FSHF
+    RPAR(RS_SBTC1+1)  = SBTC1
+    RPAR(RS_SDBC1+1)  = SDBC1
+    RPAR(RS_SDBC2+1)  = SDBC2
+    IPAR(IS_NK+1)     = NK
+    IPAR(IS_NTH+1)    = NTH
+    IPAR(IS_NSPEC+1)  = NSPEC
+    IPAR(IS_IQTPE+1)  = IQTPE
+    IPAR(IS_IICEDISP+1)    = MERGE(1, 0, IICEDISP)
+    IPAR(IS_IC_NUMERICS+1) = MERGE(1, 0, IC_NUMERICS)
+    IPAR(IS_FDONLY+1)      = MERGE(1, 0, FDONLY)
+    ! The kernel translates W3SRCE as switch_lab_shrd compiles it: these six
+    ! switches on, none of the other switches W3SRCE, W3SLN1, W3SBT1, W3SDB1
+    ! branch on (W3_OMPG changes no arithmetic and is allowed).
+#if defined(W3_BT1) && defined(W3_DB1) && defined(W3_LN1) && defined(W3_MLIM)
+#if !defined(W3_BS1) && !defined(W3_BT4) && !defined(W3_BT8) && !defined(W3_BT9) && !defined(W3_DEBUGSRC) && !defined(W3_DEBUGRUN)
+#if !defined(W3_FLD1) && !defined(W3_FLD2) && !defined(W3_FLX1) && !defined(W3_FLX2) && !defined(W3_FLX3) && !defined(W3_FLX4) && !defined(W3_FLX5)
+#if !defined(W3_IC1) && !defined(W3_IC2) && !defined(W3_IC3) && !defined(W3_IC4) && !defined(W3_IC5) && !defined(W3_IG1) && !defined(W3_IS1) && !defined(W3_IS2)
+#if !defined(W3_LN0) && !defined(W3_NL0) && !defined(W3_NL2) && !defined(W3_NL3) && !defined(W3_NL4) && !defined(W3_NL5) && !defined(W3_NLS) && !defined(W3_NNT)
+#if !defined(W3_PDLIB) && !defined(W3_REF1) && !defined(W3_S) && !defined(W3_SEED) && !defined(W3_T) && !defined(W3_T0) && !defined(W3_T1) && !defined(W3_TR1) && !defined(W3_UOST)
+#if !defined(W3_ST0) && !defined(W3_ST1) && !defined(W3_ST2) && !defined(W3_ST3) && !defined(W3_ST6) && !defined(W3_STAB3)
+    IPAR(IS_LAB_SWITCH+1)  = 1
+#endif
+#endif
+#endif
+#endif
+#endif
+#endif
+#endif
+    !
+    CALL SRCE_CHECK ( 'WW_SRCE_INIT', WW_SRCE_INIT ( IMOD, RPAR, NRSPAR, &
+         IPAR, NISPAR, SIG(1:NK), DDEN(1:NK), ECOS(1:NSPEC),             &
+         ESIN(1:NSPEC), MAPWN(1:NSPEC) ) )
+    !
+  END SUBROUTINE W3KOKKOS_SRCE_SETUP
+  !/ ------------------------------------------------------------------- /
+  !> Stop the model on a non-zero status of the shim.
+  SUBROUTINE SRCE_CHECK ( WHAT, IERR )
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    CHARACTER(LEN=*), INTENT(IN) :: WHAT
+    INTEGER(C_INT), INTENT(IN)   :: IERR
+    IF ( IERR /= 0_C_INT ) THEN
+      WRITE (NDSE,'(A,I0)') '*** WAVEWATCH III ERROR IN W3KOKKOSMD : '// &
+           'KOKKOS '//WHAT//' FAILED, CODE ', IERR
+      CALL EXTCDE ( 1 )
+    END IF
+  END SUBROUTINE SRCE_CHECK
+  !/ ------------------------------------------------------------------- /
+  !> .TRUE. when W3SRCE(srce_direct, ...) runs on Kokkos for this call: the
+  !> flag is on and the call takes no branch the kernel leaves to the Fortran:
+  !> GQM (IQTPE <= 0, w3srcemd.F90:1259); Liu's ice dispersion (INFLAGS2(4)
+  !> and IICEDISP, w3srcemd.F90:2124-2126; ICE > 0 is not needed for the test,
+  !> without it the kernel skips the ice block as well); TAUWBUG = 0
+  !> (SINTAILPAR(4) <= 0.5) with IT > 0, where W3SPR4 at :1119 reads the local
+  !> LLWS before anything sets it (w3src4md.F90:302), which no translation can
+  !> reproduce.
+  LOGICAL FUNCTION W3KOKKOS_SRCE_ON ( IT )
+    USE W3GDATMD, ONLY: IQTPE, IICEDISP, SINTAILPAR
+    USE W3IDATMD, ONLY: INFLAGS2
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: IT
+    W3KOKKOS_SRCE_ON = KOKKOS_SRCE .AND. IQTPE > 0 .AND.                 &
+         .NOT. ( INFLAGS2(4) .AND. IICEDISP ) .AND.                      &
+         ( IT == 0 .OR. SINTAILPAR(4) > 0.5 )
+  END FUNCTION W3KOKKOS_SRCE_ON
+  !/ ------------------------------------------------------------------- /
+  !> W3SRCE(srce_direct, ...) on Kokkos for one point: the argument list of
+  !> W3SRCE as the lab switch reads it (w3srcemd.F90:190-2412). VSIO, VDIO
+  !> are zeroed as W3SRCE zeroes them (:879-880); the arguments W3SRCE does not
+  !> read under that switch are not passed.
+  SUBROUTINE W3KOKKOS_SRCE ( IT, SPEC, VSIO, VDIO, SHAVEIO, WN1, CG1,  &
+       D_INP, U10ABS, U10DIR, AS, USTAR, USTDIR, ICE, DTDYN, FCUT, DTG, &
+       TAUWX, TAUWY, TAUOX, TAUOY, TAUWIX, TAUWIY, TAUWNX, TAUWNY,      &
+       PHIAW, CHARN, TWS, PHIOC, WHITECAP, PHIBBL, TAUBBL, TAUICE,      &
+       PHICE, TAUOCX, TAUOCY, WNMEAN, DAIR, COEF )
+    USE W3GDATMD, ONLY: NK, NSPEC, IGRID
+    USE W3IDATMD, ONLY: INFLAGS2
+    USE W3ODATMD, ONLY: FLOGRD
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: IT
+    REAL, INTENT(INOUT)     :: SPEC(NSPEC)
+    REAL, INTENT(OUT)       :: VSIO(NSPEC), VDIO(NSPEC)
+    LOGICAL, INTENT(OUT)    :: SHAVEIO
+    REAL, INTENT(IN)        :: WN1(NK), CG1(NK), D_INP, U10ABS, U10DIR, &
+                               AS, ICE, DTG, DAIR, COEF
+    REAL, INTENT(INOUT)     :: USTAR, USTDIR, TAUWX, TAUWY, TAUOX,      &
+                               TAUOY, TAUWIX, TAUWIY, TAUWNX, TAUWNY,   &
+                               PHIAW, CHARN, TWS, PHIOC, WHITECAP(4),   &
+                               PHIBBL, TAUBBL(2), TAUICE(2), PHICE,     &
+                               TAUOCX, TAUOCY, WNMEAN
+    REAL, INTENT(OUT)       :: DTDYN, FCUT
+    INTEGER(C_INT)          :: SH, IERR
+    VSIO = 0.
+    VDIO = 0.
+    SH = 0
+    !$OMP CRITICAL (WW_KOKKOS_SRCE)
+    CALL WW_SRCE ( IGRID, IT, MERGE(1_C_INT, 0_C_INT, INFLAGS2(4)),     &
+         MERGE(1_C_INT, 0_C_INT, FLOGRD(5,7)),                          &
+         MERGE(1_C_INT, 0_C_INT, FLOGRD(5,8)),                          &
+         SPEC, WN1, CG1, D_INP, U10ABS, U10DIR, AS, ICE, DTG, DAIR,     &
+         COEF, USTAR, USTDIR, TAUWX, TAUWY, DTDYN, FCUT, TAUOX, TAUOY,  &
+         TAUWIX, TAUWIY, TAUWNX, TAUWNY, PHIAW, CHARN, TWS, PHIOC,      &
+         WHITECAP, PHIBBL, TAUBBL, TAUICE, PHICE, TAUOCX, TAUOCY,       &
+         WNMEAN, SH )
+    IERR = WW_SRCE_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_SRCE)
+    CALL SRCE_CHECK ( 'W3SRCE', IERR )
+    SHAVEIO = ( SH /= 0_C_INT )
+  END SUBROUTINE W3KOKKOS_SRCE
 #endif
   !/ ------------------------------------------------------------------- /
   !/

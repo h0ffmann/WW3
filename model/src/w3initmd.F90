@@ -754,7 +754,8 @@ CONTAINS
     IF ( IERR_K /= 0 ) CALL EXTCDE ( 1 )
     CALL W3KOKKOS_SETUP
 #ifdef W3_NL1
-    IF ( KOKKOS_SNL1 ) THEN
+    ! The Kokkos W3SRCE calls the Kokkos DIA, so it needs these tables too.
+    IF ( KOKKOS_SNL1 .OR. KOKKOS_SRCE ) THEN
       ! SIG(1:NK), not SIG: W3GDATMD allocates SIG(0:MK+1) and the C dummy is
       ! assumed-size, so the bare name would pass SIG(0). Not SIG(1) either:
       ! SIG is a POINTER, and an element of a pointer array cannot be
@@ -762,15 +763,29 @@ CONTAINS
       IERR_K = WW_SNL1_INIT ( IMOD, NK, NTH, XFR, DTH, LAM, SNLC1, KDCON,     &
                               KDMN, SNLS1, SNLS2, SNLS3, FACHFE, SIG(1:NK) )
       IF ( IERR_K /= 0 ) CALL EXTCDE ( 1 )
-      WRITE (NDSO,'(A)') '  Kokkos DIA (W3SNL1) enabled.'
+      IF ( KOKKOS_SNL1 ) WRITE (NDSO,'(A)') '  Kokkos DIA (W3SNL1) enabled.'
     END IF
 #endif
 #ifdef W3_ST4
-    IF ( KOKKOS_SDS4 .OR. KOKKOS_SIN4 .OR. KOKKOS_SPR4 ) THEN
+    IF ( KOKKOS_SDS4 .OR. KOKKOS_SIN4 .OR. KOKKOS_SPR4 .OR. KOKKOS_SRCE ) THEN
       CALL W3KOKKOS_ST4_SETUP ( IMOD )
-      WRITE (NDSO,'(A,3(A,L1))') '  Kokkos ST4 (W3SDS4 W3SIN4 W3SPR4) '// &
+      IF ( KOKKOS_SDS4 .OR. KOKKOS_SIN4 .OR. KOKKOS_SPR4 )                  &
+           WRITE (NDSO,'(A,3(A,L1))') '  Kokkos ST4 (W3SDS4 W3SIN4 W3SPR4) '// &
            'enabled:', ' SDS4=', KOKKOS_SDS4, ' SIN4=', KOKKOS_SIN4,     &
            ' SPR4=', KOKKOS_SPR4
+    END IF
+#endif
+#if defined(W3_ST4) && defined(W3_NL1)
+    IF ( KOKKOS_SRCE ) THEN
+      CALL W3KOKKOS_SRCE_SETUP ( IMOD )
+      WRITE (NDSO,'(A)') '  Kokkos W3SRCE (with ST4, W3SNL1, W3SLN1, '//   &
+           'W3SBT1, W3SDB1) enabled.'
+    END IF
+#else
+    IF ( KOKKOS_SRCE ) THEN
+      WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3INIT : '//           &
+           'WW_KOKKOS_SRCE=1 needs the ST4 and NL1 switches'
+      CALL EXTCDE ( 1 )
     END IF
 #endif
 #endif

@@ -446,6 +446,9 @@ CONTAINS
                           W3UICE, W3ULEV, W3UCUR, W3UIC1, W3UTRN
     !/
     USE W3SRCEMD,  ONLY : W3SRCE
+#if defined(W3_KOKKOS) && defined(W3_ST4) && defined(W3_NL1)
+    USE W3KOKKOSMD, ONLY: W3KOKKOS_SRCE_ON, W3KOKKOS_SRCE
+#endif
     !/
 #ifdef W3_MPI
     USE W3ODATMD,  ONLY : NRQGO, NRQGO2, IRQGO, IRQGO2, NRQPO, IRQPO1
@@ -2308,6 +2311,24 @@ CONTAINS
                          RHOAIR(ISEA), ASF(ISEA))
                   ELSE
 #endif
+#if defined(W3_KOKKOS) && defined(W3_ST4) && defined(W3_NL1)
+                    ! ww3-gpu: W3SRCE on Kokkos (WW_KOKKOS_SRCE=1), unless this
+                    ! call takes a branch the kernel leaves to the Fortran.
+                    IF ( W3KOKKOS_SRCE_ON(IT) ) THEN
+                      CALL W3KOKKOS_SRCE ( IT, VA(:,JSEA), VSioDummy,      &
+                           VDioDummy, SHAVETOTioDummy, WN(1:NK,ISEA),      &
+                           CG(1:NK,ISEA), DW(ISEA), U10(ISEA), U10D(ISEA), &
+                           AS(ISEA), UST(ISEA), USTDIR(ISEA), ICE(ISEA),   &
+                           DTDYN(JSEA), FCUT(JSEA), DTG, TAUWX(JSEA),      &
+                           TAUWY(JSEA), TAUOX(JSEA), TAUOY(JSEA),          &
+                           TAUWIX(JSEA), TAUWIY(JSEA), TAUWNX(JSEA),       &
+                           TAUWNY(JSEA), PHIAW(JSEA), CHARN(JSEA),         &
+                           TWS(JSEA), PHIOC(JSEA), TMP1, PHIBBL(JSEA),     &
+                           TMP3, TMP4, PHICE(JSEA), TAUOCX(JSEA),          &
+                           TAUOCY(JSEA), WNMEAN(JSEA), RHOAIR(ISEA),       &
+                           ASF(ISEA) )
+                    ELSE
+#endif
                     CALL W3SRCE(srce_direct, IT, ISEA, JSEA, IX, IY, IMOD, &
                          VAoldDummy, VA(:,JSEA),                           &
                          VSioDummy, VDioDummy, SHAVETOTioDummy,            &
@@ -2332,6 +2353,9 @@ CONTAINS
                          PHIBBL(JSEA), TMP3, TMP4 , PHICE(JSEA),           &
                          TAUOCX(JSEA), TAUOCY(JSEA), WNMEAN(JSEA),         &
                          RHOAIR(ISEA), ASF(ISEA))
+#if defined(W3_KOKKOS) && defined(W3_ST4) && defined(W3_NL1)
+                    END IF
+#endif
 #ifdef W3_PDLIB
                   END IF
 #endif
