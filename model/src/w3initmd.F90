@@ -781,6 +781,12 @@ CONTAINS
       WRITE (NDSO,'(A)') '  Kokkos ST0 (W3SPR0) enabled.'
     END IF
 #endif
+#ifdef W3_ST6
+    IF ( KOKKOS_SWL6 ) THEN
+      CALL W3KOKKOS_SWL_SETUP ( IMOD )
+      WRITE (NDSO,'(A)') '  Kokkos W3SWL6 enabled.'
+    END IF
+#endif
 #ifdef W3_ST1
     CALL W3KOKKOS_ST1_SETUP ( IMOD )
     IF ( KOKKOS_SPR1 .OR. KOKKOS_SIN1 .OR. KOKKOS_SDS1 )                    &

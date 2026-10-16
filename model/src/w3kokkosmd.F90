@@ -132,6 +132,18 @@ MODULE W3KOKKOSMD
              KOKKOS_FLX3 = .FALSE., KOKKOS_FLX4 = .FALSE.,             &
              KOKKOS_FLX5 = .FALSE.
 #endif
+#ifdef W3_ST6
+  !> Kokkos W3SWL6: WW_KOKKOS_SWL6=1, read by W3KOKKOS_SETUP.
+  LOGICAL :: KOKKOS_SWL6 = .FALSE.
+  !/
+  !/ SWL packet indices and array ids, 0-based as WwSwlRpar, WwSwlIpar and
+  !/ WwSwlArray of ww_kokkos_c.hpp.
+  !/
+  INTEGER, PARAMETER :: SWL_R_DTH = 0, SWL_R_SWL6B1 = 1, SWL_NRPAR = 2
+  INTEGER, PARAMETER :: SWL_I_NK = 0, SWL_I_NTH = 1, SWL_I_NSPEC = 2,  &
+       SWL_I_SWL6CSTB1 = 3, SWL_NIPAR = 4
+  INTEGER, PARAMETER :: SWL_A_SIG = 0, SWL_A_DDEN = 1
+#endif
   !/
   !/ W3SRCE packet indices, 0-based as in ww_kokkos/srce_params.hpp.
   !/
@@ -507,6 +519,54 @@ MODULE W3KOKKOSMD
        IMPORT :: C_INT
      END FUNCTION WW_FLX_LAST_ERROR
 #endif
+#ifdef W3_ST6
+     !> SWL configuration of grid IGRID (W3INIT's IMOD): scalars, then each
+     !> array with its LBOUND and SHAPE, then the commit.
+     INTEGER(C_INT) FUNCTION WW_SWL_INIT ( IGRID, RPAR, NR, IPAR, NI )   &
+          BIND(C, NAME='ww_swl_init')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NR, NI
+       REAL(C_FLOAT),  INTENT(IN)      :: RPAR(*)
+       INTEGER(C_INT), INTENT(IN)      :: IPAR(*)
+     END FUNCTION WW_SWL_INIT
+     !
+     INTEGER(C_INT) FUNCTION WW_SWL_SET_REAL ( IGRID, ID, X, RANK, LB,   &
+          EXT ) BIND(C, NAME='ww_swl_set_real')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, ID, RANK
+       REAL(C_FLOAT),  INTENT(IN)      :: X(*)
+       INTEGER(C_INT), INTENT(IN)      :: LB(*), EXT(*)
+     END FUNCTION WW_SWL_SET_REAL
+     !
+     INTEGER(C_INT) FUNCTION WW_SWL_COMMIT ( IGRID )                     &
+          BIND(C, NAME='ww_swl_commit')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE           :: IGRID
+     END FUNCTION WW_SWL_COMMIT
+     !
+     !> W3SWL6. A, S, D (NSPEC,NPTS); CG, WN (NK,NPTS). Returns 0, or 2
+     !> where W3SWL6 stops in EXTCDE(2), with NIKN = SIZE(IKN).
+     INTEGER(C_INT) FUNCTION WW_SWL6 ( IGRID, NPTS, A, CG, WN, S, D,     &
+          NIKN ) BIND(C, NAME='ww_swl6')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: A(*), CG(*), WN(*)
+       REAL(C_FLOAT),  INTENT(OUT)     :: S(*), D(*)
+       INTEGER(C_INT), INTENT(OUT)     :: NIKN
+     END FUNCTION WW_SWL6
+     !
+     !> WHICH = 1 SWL6.
+     INTEGER(C_INT) FUNCTION WW_SWL_ENABLED ( WHICH )                    &
+          BIND(C, NAME='ww_swl_enabled')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE           :: WHICH
+     END FUNCTION WW_SWL_ENABLED
+     !
+     INTEGER(C_INT) FUNCTION WW_SWL_LAST_ERROR ( )                       &
+          BIND(C, NAME='ww_swl_last_error')
+       IMPORT :: C_INT
+     END FUNCTION WW_SWL_LAST_ERROR
+#endif
   END INTERFACE
 #ifdef W3_ST1
   !/
@@ -780,6 +840,9 @@ CONTAINS
     KOKKOS_FLX3 = ( WW_FLX_ENABLED(3_C_INT) == 1_C_INT )
     KOKKOS_FLX4 = ( WW_FLX_ENABLED(4_C_INT) == 1_C_INT )
     KOKKOS_FLX5 = ( WW_FLX_ENABLED(5_C_INT) == 1_C_INT )
+#endif
+#ifdef W3_ST6
+    KOKKOS_SWL6 = ( WW_SWL_ENABLED(1_C_INT) == 1_C_INT )
 #endif
     !
   END SUBROUTINE W3KOKKOS_SETUP
@@ -2050,6 +2113,86 @@ CONTAINS
          '     HEIGHT OF WIND SHOULD BE 10m IN THIS APPROACH '/   &
          '     ZWND =',F8.2,'m'/)
   END SUBROUTINE W3KOKKOS_FLX5
+#endif
+#ifdef W3_ST6
+  !/ ------------------------------------------------------------------- /
+  !> @brief Give the shim grid IMOD's W3SWL6 scalars and arrays.
+  !>
+  !> Call from W3INIT after W3IOGR, with W3SETG done for IMOD, so the
+  !> W3GDATMD aliases hold this grid's values.
+  !>
+  SUBROUTINE W3KOKKOS_SWL_SETUP ( IMOD )
+    USE W3GDATMD, ONLY: NK, NTH, NSPEC, DTH, SIG, DDEN, SWL6B1,       &
+         SWL6CSTB1
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: IMOD
+    REAL(C_FLOAT)           :: RPAR(SWL_NRPAR)
+    INTEGER(C_INT)          :: IPAR(SWL_NIPAR)
+    !
+    RPAR(SWL_R_DTH+1)       = DTH
+    RPAR(SWL_R_SWL6B1+1)    = SWL6B1
+    IPAR(SWL_I_NK+1)        = NK
+    IPAR(SWL_I_NTH+1)       = NTH
+    IPAR(SWL_I_NSPEC+1)     = NSPEC
+    IPAR(SWL_I_SWL6CSTB1+1) = MERGE(1_C_INT, 0_C_INT, SWL6CSTB1)
+    CALL SWL_CHECK ( 'WW_SWL_INIT',                                     &
+         WW_SWL_INIT ( IMOD, RPAR, SWL_NRPAR, IPAR, SWL_NIPAR ) )
+    ! SIG is SIG(0:MK+1) (w3gdatmd.F90:2066), DDEN is DDEN(MK): the shim
+    ! takes (1:NK) of each from the LBOUND it is given.
+    CALL SWL_SET_R1 ( IMOD, SWL_A_SIG, SIG, LBOUND(SIG) )
+    CALL SWL_SET_R1 ( IMOD, SWL_A_DDEN, DDEN, LBOUND(DDEN) )
+    CALL SWL_CHECK ( 'WW_SWL_COMMIT', WW_SWL_COMMIT ( IMOD ) )
+    !
+  END SUBROUTINE W3KOKKOS_SWL_SETUP
+  !/ ------------------------------------------------------------------- /
+  !> Stop the model on a non-zero status of the shim.
+  SUBROUTINE SWL_CHECK ( WHAT, IERR )
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    CHARACTER(LEN=*), INTENT(IN) :: WHAT
+    INTEGER(C_INT), INTENT(IN)   :: IERR
+    IF ( IERR /= 0_C_INT ) THEN
+      WRITE (NDSE,'(A,I0)') '*** WAVEWATCH III ERROR IN W3KOKKOSMD : '// &
+           'KOKKOS '//WHAT//' FAILED, CODE ', IERR
+      CALL EXTCDE ( 1 )
+    END IF
+  END SUBROUTINE SWL_CHECK
+  !/ ------------------------------------------------------------------- /
+  !> Register one array. X is assumed-shape, so its own bounds are 1-based:
+  !> the actual's LBOUND travels in LB, its SHAPE in SHAPE(X).
+  SUBROUTINE SWL_SET_R1 ( IMOD, ID, X, LB )
+    INTEGER, INTENT(IN)     :: IMOD, ID, LB(1)
+    REAL, INTENT(IN)        :: X(:)
+    CALL SWL_CHECK ( 'WW_SWL_SET_REAL', WW_SWL_SET_REAL ( IMOD, ID, X, &
+         1, INT(LB,C_INT), INT(SHAPE(X),C_INT) ) )
+  END SUBROUTINE SWL_SET_R1
+  !/ ------------------------------------------------------------------- /
+  !> W3SWL6 on Kokkos for one point, the argument list of W3SWL6.
+  !> Serialised: the shim's contexts and its one IKN per process are
+  !> unlocked, and W3SRCE runs inside !$OMP PARALLEL under W3_OMPG / W3_OMP0.
+  !> Where W3SWL6 stops (SIZE(IKN) /= NK, w3swldmd.F90:374-377) this writes
+  !> its FORMAT 6001 and stops with the same EXTCDE(2).
+  SUBROUTINE W3KOKKOS_SWL6 ( A, CG, WN, S, D )
+    USE W3GDATMD, ONLY: NK, NSPEC, IGRID
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: A(NSPEC), CG(NK), WN(NK)
+    REAL, INTENT(OUT)       :: S(NSPEC), D(NSPEC)
+    INTEGER(C_INT)          :: RC, NIKN, IERR
+    !$OMP CRITICAL (WW_KOKKOS_SWL)
+    RC = WW_SWL6 ( IGRID, 1, A, CG, WN, S, D, NIKN )
+    IERR = WW_SWL_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_SWL)
+    CALL SWL_CHECK ( 'W3SWL6', IERR )
+    IF ( RC /= 0_C_INT ) THEN
+      WRITE (NDSE,6001) NIKN, NK
+      CALL EXTCDE ( 2 )
+    END IF
+6001 FORMAT (' *** WAVEWATCH III ERROR IN W3SWL6 : '/ &
+       '     INDEX ARRAY DIM MISMATCH SIZE(IKN)=',I4,' .NE. NK=',I4)
+  END SUBROUTINE W3KOKKOS_SWL6
 #endif
   !/ ------------------------------------------------------------------- /
   !/

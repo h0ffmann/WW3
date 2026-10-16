@@ -608,6 +608,9 @@ CONTAINS
     USE W3SRC6MD, ONLY : W3SPR6, W3SIN6, W3SDS6
     USE W3SWLDMD, ONLY : W3SWL6
     USE W3GDATMD, ONLY : SWL6S6
+#ifdef W3_KOKKOS
+    USE W3KOKKOSMD, ONLY: KOKKOS_SWL6, W3KOKKOS_SWL6
+#endif
 #endif
 #ifdef W3_NL1
     USE W3SNL1MD
@@ -1626,7 +1629,15 @@ CONTAINS
       !
 #ifdef W3_ST6
       IF (SWL6S6) THEN
+#ifdef W3_KOKKOS
+        IF ( KOKKOS_SWL6 ) THEN
+          CALL W3KOKKOS_SWL6 ( SPEC, CG1, WN1, VSWL, VDWL )
+        ELSE
+          CALL W3SWL6 ( SPEC, CG1, WN1, VSWL, VDWL )
+        END IF
+#else
         CALL W3SWL6 ( SPEC, CG1, WN1, VSWL, VDWL )
+#endif
       END IF
 #endif
       !
