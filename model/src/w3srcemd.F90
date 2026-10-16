@@ -549,6 +549,21 @@ CONTAINS
 #ifdef W3_FLX5
     USE W3FLX5MD
 #endif
+#if defined(W3_KOKKOS) && defined(W3_FLX1)
+    USE W3KOKKOSMD, ONLY: KOKKOS_FLX1, W3KOKKOS_FLX1
+#endif
+#if defined(W3_KOKKOS) && defined(W3_FLX2)
+    USE W3KOKKOSMD, ONLY: KOKKOS_FLX2, W3KOKKOS_FLX2
+#endif
+#if defined(W3_KOKKOS) && defined(W3_FLX3)
+    USE W3KOKKOSMD, ONLY: KOKKOS_FLX3, W3KOKKOS_FLX3
+#endif
+#if defined(W3_KOKKOS) && defined(W3_FLX4)
+    USE W3KOKKOSMD, ONLY: KOKKOS_FLX4, W3KOKKOS_FLX4
+#endif
+#if defined(W3_KOKKOS) && defined(W3_FLX5)
+    USE W3KOKKOSMD, ONLY: KOKKOS_FLX5, W3KOKKOS_FLX5
+#endif
 #ifdef W3_LN1
     USE W3SLN1MD
 #endif
@@ -1275,22 +1290,68 @@ CONTAINS
     ! 1.d Stresses
     !
 #ifdef W3_FLX1
+#ifdef W3_KOKKOS
+    IF ( KOKKOS_FLX1 ) THEN
+      CALL W3KOKKOS_FLX1 ( ZWND, U10ABS, U10DIR, USTAR, USTDIR, Z0, CD )
+    ELSE
+      CALL W3FLX1 ( ZWND, U10ABS, U10DIR, USTAR, USTDIR, Z0, CD )
+    END IF
+#else
     CALL W3FLX1 ( ZWND, U10ABS, U10DIR, USTAR, USTDIR, Z0, CD )
 #endif
+#endif
 #ifdef W3_FLX2
+#ifdef W3_KOKKOS
+    IF ( KOKKOS_FLX2 ) THEN
+      CALL W3KOKKOS_FLX2 ( ZWND, DEPTH, FP, U10ABS, U10DIR,            &
+           USTAR, USTDIR, Z0, CD )
+    ELSE
+      CALL W3FLX2 ( ZWND, DEPTH, FP, U10ABS, U10DIR,            &
+           USTAR, USTDIR, Z0, CD )
+    END IF
+#else
     CALL W3FLX2 ( ZWND, DEPTH, FP, U10ABS, U10DIR,            &
          USTAR, USTDIR, Z0, CD )
 #endif
+#endif
 #ifdef W3_FLX3
+#ifdef W3_KOKKOS
+    IF ( KOKKOS_FLX3 ) THEN
+      CALL W3KOKKOS_FLX3 ( ZWND, DEPTH, FP, U10ABS, U10DIR,            &
+           USTAR, USTDIR, Z0, CD )
+    ELSE
+      CALL W3FLX3 ( ZWND, DEPTH, FP, U10ABS, U10DIR,            &
+           USTAR, USTDIR, Z0, CD )
+    END IF
+#else
     CALL W3FLX3 ( ZWND, DEPTH, FP, U10ABS, U10DIR,            &
          USTAR, USTDIR, Z0, CD )
 #endif
+#endif
 #ifdef W3_FLX4
+#ifdef W3_KOKKOS
+    IF ( KOKKOS_FLX4 ) THEN
+      CALL W3KOKKOS_FLX4 ( ZWND, U10ABS, U10DIR, USTAR, USTDIR, Z0, CD )
+    ELSE
+      CALL W3FLX4 ( ZWND, U10ABS, U10DIR, USTAR, USTDIR, Z0, CD )
+    END IF
+#else
     CALL W3FLX4 ( ZWND, U10ABS, U10DIR, USTAR, USTDIR, Z0, CD )
 #endif
+#endif
 #ifdef W3_FLX5
+#ifdef W3_KOKKOS
+    IF ( KOKKOS_FLX5 ) THEN
+      CALL W3KOKKOS_FLX5 ( ZWND, U10ABS, U10DIR, TAUA, TAUADIR, DAIR,  &
+           USTAR, USTDIR, Z0, CD, CHARN )
+    ELSE
+      CALL W3FLX5 ( ZWND, U10ABS, U10DIR, TAUA, TAUADIR, DAIR,  &
+           USTAR, USTDIR, Z0, CD, CHARN )
+    END IF
+#else
     CALL W3FLX5 ( ZWND, U10ABS, U10DIR, TAUA, TAUADIR, DAIR,  &
          USTAR, USTDIR, Z0, CD, CHARN )
+#endif
 #endif
     !
     ! 1.e Prepare cut-off beyond which the tail is imposed with a power law
@@ -2174,12 +2235,32 @@ CONTAINS
 #endif
       !
 #ifdef W3_FLX2
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_FLX2 ) THEN
+        CALL W3KOKKOS_FLX2 ( ZWND, DEPTH, FP, U10ABS, U10DIR,           &
+             USTAR, USTDIR, Z0, CD )
+      ELSE
+        CALL W3FLX2 ( ZWND, DEPTH, FP, U10ABS, U10DIR,           &
+             USTAR, USTDIR, Z0, CD )
+      END IF
+#else
       CALL W3FLX2 ( ZWND, DEPTH, FP, U10ABS, U10DIR,           &
            USTAR, USTDIR, Z0, CD )
 #endif
+#endif
 #ifdef W3_FLX3
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_FLX3 ) THEN
+        CALL W3KOKKOS_FLX3 ( ZWND, DEPTH, FP, U10ABS, U10DIR,           &
+             USTAR, USTDIR, Z0, CD )
+      ELSE
+        CALL W3FLX3 ( ZWND, DEPTH, FP, U10ABS, U10DIR,           &
+             USTAR, USTDIR, Z0, CD )
+      END IF
+#else
       CALL W3FLX3 ( ZWND, DEPTH, FP, U10ABS, U10DIR,           &
            USTAR, USTDIR, Z0, CD )
+#endif
 #endif
       !
 #ifdef W3_ST1

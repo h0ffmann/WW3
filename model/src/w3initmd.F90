@@ -802,6 +802,10 @@ CONTAINS
          'enabled:', ' SPR3=', KOKKOS_SPR3, ' SIN3=', KOKKOS_SIN3,       &
          ' SDS3=', KOKKOS_SDS3
 #endif
+#if defined(W3_FLX1) || defined(W3_FLX2) || defined(W3_FLX3) || defined(W3_FLX4) || defined(W3_FLX5)
+    ! Does nothing unless WW_KOKKOS_FLXn=1 for the compiled W3_FLXn.
+    CALL W3KOKKOS_FLX_SETUP ( IMOD )
+#endif
 #if defined(W3_ST4) && defined(W3_NL1)
     IF ( KOKKOS_SRCE ) THEN
       CALL W3KOKKOS_SRCE_SETUP ( IMOD )

@@ -125,6 +125,13 @@ MODULE W3KOKKOSMD
   INTEGER, PARAMETER :: I0_NK = 0, I0_NTH = 1, I0_NSPEC = 2, NI0PAR = 3
   INTEGER, PARAMETER :: A0_SIG = 0, A0_DDEN = 1
 #endif
+#if defined(W3_FLX1) || defined(W3_FLX2) || defined(W3_FLX3) || defined(W3_FLX4) || defined(W3_FLX5)
+  !> Kokkos W3FLX1..W3FLX5: WW_KOKKOS_FLX1..FLX5=1. Only the flag of the
+  !> compiled W3_FLXn has an effect.
+  LOGICAL :: KOKKOS_FLX1 = .FALSE., KOKKOS_FLX2 = .FALSE.,             &
+             KOKKOS_FLX3 = .FALSE., KOKKOS_FLX4 = .FALSE.,             &
+             KOKKOS_FLX5 = .FALSE.
+#endif
   !/
   !/ W3SRCE packet indices, 0-based as in ww_kokkos/srce_params.hpp.
   !/
@@ -170,6 +177,17 @@ MODULE W3KOKKOSMD
        A_SATINDICES = 12, A_IKTAB = 13, A_TAUT = 14, A_TAUHFT = 15,    &
        A_TAUHFT2 = 16, A_FWTABLE = 17, NARRAYS = 18
   !/
+#if defined(W3_FLX1) || defined(W3_FLX2) || defined(W3_FLX3) || defined(W3_FLX4) || defined(W3_FLX5)
+  !/ FLX packet indices, 0-based as WwFlxRpar, WwFlxIpar, WwFlxArray in
+  !/ ww_kokkos_c.hpp ("FLX"): Fortran RPAR(FR_X+1).
+  !/
+  INTEGER, PARAMETER :: FR_CINXSI = 0, FR_CD_MAX = 1, FR_FLX4A0 = 2,   &
+       FR_DSIE = 3, NFRPAR = 4
+  INTEGER, PARAMETER :: FI_FLX = 0, FI_NITTIN = 1, FI_CAP_ID = 2,      &
+       FI_N1MAX = 3, NFIPAR = 4
+  INTEGER, PARAMETER :: FA_EWN1 = 0
+  !/
+#endif
   !/ ------------------------------------------------------------------- /
   !/ The C ABI. One block per declaration of ww_kokkos_c.hpp.
   !/
@@ -403,6 +421,92 @@ MODULE W3KOKKOSMD
      END FUNCTION WW_ST0_LAST_ERROR
 #endif
      !
+#if defined(W3_FLX1) || defined(W3_FLX2) || defined(W3_FLX3) || defined(W3_FLX4) || defined(W3_FLX5)
+     !> FLX. Every per-point scalar is an array of NPTS; every OUT argument is
+     !> copied in as well (INTENT(INOUT)). IEXT is the code of the EXTCDE the
+     !> Fortran would call (ZWND not 10 m), 0 otherwise.
+     INTEGER(C_INT) FUNCTION WW_FLX_INIT ( IGRID, RPAR, NR, IPAR, NI )   &
+          BIND(C, NAME='ww_flx_init')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NR, NI
+       REAL(C_FLOAT),  INTENT(IN)      :: RPAR(*)
+       INTEGER(C_INT), INTENT(IN)      :: IPAR(*)
+     END FUNCTION WW_FLX_INIT
+     !
+     INTEGER(C_INT) FUNCTION WW_FLX_SET_REAL ( IGRID, ID, X, RANK, LB,   &
+          EXT ) BIND(C, NAME='ww_flx_set_real')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, ID, RANK
+       REAL(C_FLOAT),  INTENT(IN)      :: X(*)
+       INTEGER(C_INT), INTENT(IN)      :: LB(*), EXT(*)
+     END FUNCTION WW_FLX_SET_REAL
+     !
+     INTEGER(C_INT) FUNCTION WW_FLX_COMMIT ( IGRID )                     &
+          BIND(C, NAME='ww_flx_commit')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE           :: IGRID
+     END FUNCTION WW_FLX_COMMIT
+     !
+     SUBROUTINE WW_FLX1 ( IGRID, NPTS, ZWND, U10, U10D, UST, USTD, Z0,   &
+          CD, IEXT ) BIND(C, NAME='ww_flx1')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: ZWND(*), U10(*), U10D(*)
+       REAL(C_FLOAT),  INTENT(INOUT)   :: UST(*), USTD(*), Z0(*), CD(*)
+       INTEGER(C_INT), INTENT(INOUT)   :: IEXT(*)
+     END SUBROUTINE WW_FLX1
+     !
+     SUBROUTINE WW_FLX2 ( IGRID, NPTS, ZWIND, DEPTH, FP, U, UDIR, UST,   &
+          USTD, Z0, CD ) BIND(C, NAME='ww_flx2')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: ZWIND(*), DEPTH(*), FP(*),     &
+                                          U(*), UDIR(*)
+       REAL(C_FLOAT),  INTENT(INOUT)   :: UST(*), USTD(*), Z0(*), CD(*)
+     END SUBROUTINE WW_FLX2
+     !
+     SUBROUTINE WW_FLX3 ( IGRID, NPTS, ZWIND, DEPTH, FP, U, UDIR, UST,   &
+          USTD, Z0, CD ) BIND(C, NAME='ww_flx3')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: ZWIND(*), DEPTH(*), FP(*),     &
+                                          U(*), UDIR(*)
+       REAL(C_FLOAT),  INTENT(INOUT)   :: UST(*), USTD(*), Z0(*), CD(*)
+     END SUBROUTINE WW_FLX3
+     !
+     SUBROUTINE WW_FLX4 ( IGRID, NPTS, ZWND, U10, U10D, UST, USTD, Z0,   &
+          CD, IEXT ) BIND(C, NAME='ww_flx4')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: ZWND(*), U10(*), U10D(*)
+       REAL(C_FLOAT),  INTENT(INOUT)   :: UST(*), USTD(*), Z0(*), CD(*)
+       INTEGER(C_INT), INTENT(INOUT)   :: IEXT(*)
+     END SUBROUTINE WW_FLX4
+     !
+     SUBROUTINE WW_FLX5 ( IGRID, NPTS, ZWND, U10, U10D, TAUA, TAUADIR,   &
+          RHOAIR, UST, USTD, Z0, CD, CHARN, IEXT )                       &
+          BIND(C, NAME='ww_flx5')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: ZWND(*), U10(*), U10D(*),      &
+                                          TAUA(*), TAUADIR(*), RHOAIR(*)
+       REAL(C_FLOAT),  INTENT(INOUT)   :: UST(*), USTD(*), Z0(*), CD(*), &
+                                          CHARN(*)
+       INTEGER(C_INT), INTENT(INOUT)   :: IEXT(*)
+     END SUBROUTINE WW_FLX5
+     !
+     !> WHICH = 1..5 FLX1..FLX5, 6 FLX_TABLES.
+     INTEGER(C_INT) FUNCTION WW_FLX_ENABLED ( WHICH )                    &
+          BIND(C, NAME='ww_flx_enabled')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE           :: WHICH
+     END FUNCTION WW_FLX_ENABLED
+     !
+     INTEGER(C_INT) FUNCTION WW_FLX_LAST_ERROR ( )                       &
+          BIND(C, NAME='ww_flx_last_error')
+       IMPORT :: C_INT
+     END FUNCTION WW_FLX_LAST_ERROR
+#endif
   END INTERFACE
 #ifdef W3_ST1
   !/
@@ -669,6 +773,13 @@ CONTAINS
     KOKKOS_SRCE = ( WW_SRCE_ENABLED() == 1_C_INT )
 #ifdef W3_ST0
     KOKKOS_SPR0 = ( WW_ST0_ENABLED(1_C_INT) == 1_C_INT )
+#endif
+#if defined(W3_FLX1) || defined(W3_FLX2) || defined(W3_FLX3) || defined(W3_FLX4) || defined(W3_FLX5)
+    KOKKOS_FLX1 = ( WW_FLX_ENABLED(1_C_INT) == 1_C_INT )
+    KOKKOS_FLX2 = ( WW_FLX_ENABLED(2_C_INT) == 1_C_INT )
+    KOKKOS_FLX3 = ( WW_FLX_ENABLED(3_C_INT) == 1_C_INT )
+    KOKKOS_FLX4 = ( WW_FLX_ENABLED(4_C_INT) == 1_C_INT )
+    KOKKOS_FLX5 = ( WW_FLX_ENABLED(5_C_INT) == 1_C_INT )
 #endif
     !
   END SUBROUTINE W3KOKKOS_SETUP
@@ -1647,6 +1758,298 @@ CONTAINS
     !$OMP END CRITICAL (WW_KOKKOS_ST3)
     CALL ST3_CHECK ( 'W3SDS3', IERR )
   END SUBROUTINE W3KOKKOS_SDS3
+#endif
+#if defined(W3_FLX1) || defined(W3_FLX2) || defined(W3_FLX3) || defined(W3_FLX4) || defined(W3_FLX5)
+  !/ ------------------------------------------------------------------- /
+  !> @brief Give the shim grid IMOD's W3FLXn scalars (and W3DISPMD's table).
+  !>
+  !> Call from W3INIT after W3IOGR, with W3SETG done for IMOD, so the W3GDATMD
+  !> pointers NITTIN, CINXSI, CD_MAX, CAP_ID, FLX4A0 are this grid's and
+  !> W3IOGR has run DISTAB (w3iogrmd.F90:2015-2021). Does nothing unless the
+  !> flag of the compiled W3_FLXn is on.
+  !>
+  SUBROUTINE W3KOKKOS_FLX_SETUP ( IMOD )
+#if defined(W3_FLX2)
+    USE W3GDATMD, ONLY: NITTIN, CINXSI
+#endif
+#if defined(W3_FLX3)
+    USE W3GDATMD, ONLY: NITTIN, CINXSI, CD_MAX, CAP_ID
+#endif
+#if defined(W3_FLX4)
+    USE W3GDATMD, ONLY: FLX4A0
+#endif
+#if defined(W3_FLX2) || defined(W3_FLX3)
+    USE W3DISPMD, ONLY: EWN1, DSIE, N1MAX
+#endif
+    USE W3ODATMD, ONLY: NDSO
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: IMOD
+    REAL(C_FLOAT)           :: RPAR(NFRPAR)
+    INTEGER(C_INT)          :: IPAR(NFIPAR)
+    LOGICAL                 :: ON
+    INTEGER                 :: N
+    !
+    RPAR = 0.
+    IPAR = 0
+#ifdef W3_FLX1
+    ON = KOKKOS_FLX1
+    N  = 1
+#endif
+#ifdef W3_FLX2
+    ON = KOKKOS_FLX2
+    N  = 2
+    IPAR(FI_NITTIN+1) = NITTIN
+    RPAR(FR_CINXSI+1) = CINXSI
+#endif
+#ifdef W3_FLX3
+    ON = KOKKOS_FLX3
+    N  = 3
+    IPAR(FI_NITTIN+1) = NITTIN
+    IPAR(FI_CAP_ID+1) = CAP_ID
+    RPAR(FR_CINXSI+1) = CINXSI
+    RPAR(FR_CD_MAX+1) = CD_MAX
+#endif
+#ifdef W3_FLX4
+    ON = KOKKOS_FLX4
+    N  = 4
+    RPAR(FR_FLX4A0+1) = FLX4A0
+#endif
+#ifdef W3_FLX5
+    ON = KOKKOS_FLX5
+    N  = 5
+#endif
+    IF ( .NOT. ON ) RETURN
+    IPAR(FI_FLX+1) = N
+#if defined(W3_FLX2) || defined(W3_FLX3)
+    RPAR(FR_DSIE+1)  = DSIE
+    IPAR(FI_N1MAX+1) = N1MAX
+#endif
+    CALL FLX_CHECK ( 'WW_FLX_INIT',                                     &
+         WW_FLX_INIT ( IMOD, RPAR, NFRPAR, IPAR, NFIPAR ) )
+#if defined(W3_FLX2) || defined(W3_FLX3)
+    ! EWN1 is EWN1(0:NAR1D), a fixed-size module array: the bare name passes
+    ! EWN1(0), which is what the shim expects with LBOUND 0.
+    CALL FLX_CHECK ( 'WW_FLX_SET_REAL', WW_FLX_SET_REAL ( IMOD, FA_EWN1, &
+         EWN1, 1_C_INT, INT(LBOUND(EWN1),C_INT),                        &
+         INT(SHAPE(EWN1),C_INT) ) )
+#endif
+    CALL FLX_CHECK ( 'WW_FLX_COMMIT', WW_FLX_COMMIT ( IMOD ) )
+    WRITE (NDSO,'(A,I1,A)') '  Kokkos W3FLX', N, ' enabled.'
+    !
+  END SUBROUTINE W3KOKKOS_FLX_SETUP
+  !/ ------------------------------------------------------------------- /
+  !> Stop the model on a non-zero status of the shim.
+  SUBROUTINE FLX_CHECK ( WHAT, IERR )
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    CHARACTER(LEN=*), INTENT(IN) :: WHAT
+    INTEGER(C_INT), INTENT(IN)   :: IERR
+    IF ( IERR /= 0_C_INT ) THEN
+      WRITE (NDSE,'(A,I0)') '*** WAVEWATCH III ERROR IN W3KOKKOSMD : '// &
+           'KOKKOS '//WHAT//' FAILED, CODE ', IERR
+      CALL EXTCDE ( 1 )
+    END IF
+  END SUBROUTINE FLX_CHECK
+#endif
+#ifdef W3_FLX1
+  !/ ------------------------------------------------------------------- /
+  !> W3FLX1 on Kokkos for one point, the argument list of W3FLX1. Where
+  !> W3FLX1 stops (w3flx1md.F90:178-181) this writes its message and stops
+  !> with the same code. Serialised: W3SRCE runs inside !$OMP PARALLEL
+  !> under W3_OMPG / W3_OMP0 and the shim's contexts are unlocked.
+  SUBROUTINE W3KOKKOS_FLX1 ( ZWND, U10, U10D, UST, USTD, Z0, CD )
+    USE W3GDATMD, ONLY: IGRID
+    USE W3ODATMD, ONLY: NDSE, IAPROC, NAPERR
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: ZWND, U10, U10D
+    REAL, INTENT(INOUT)     :: UST, USTD, Z0, CD
+    REAL(C_FLOAT)           :: ZW(1), U1(1), UD(1), US(1), USD(1),      &
+                               Z01(1), CD1(1)
+    INTEGER(C_INT)          :: IEXT(1), IERR
+    ZW(1) = ZWND
+    U1(1) = U10
+    UD(1) = U10D
+    US(1) = UST
+    USD(1) = USTD
+    Z01(1) = Z0
+    CD1(1) = CD
+    IEXT(1) = 0
+    !$OMP CRITICAL (WW_KOKKOS_FLX)
+    CALL WW_FLX1 ( IGRID, 1, ZW, U1, UD, US, USD, Z01, CD1, IEXT )
+    IERR = WW_FLX_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_FLX)
+    CALL FLX_CHECK ( 'W3FLX1', IERR )
+    IF ( IEXT(1) /= 0_C_INT ) THEN
+      IF ( IAPROC .EQ. NAPERR ) WRITE (NDSE,1000) ZWND
+      CALL EXTCDE ( INT(IEXT(1)) )
+    END IF
+    UST = US(1)
+    USTD = USD(1)
+    Z0 = Z01(1)
+    CD = CD1(1)
+    ! The text of w3flx1md.F90:194-196, as W3FLX1 writes it.
+1000 FORMAT (/' *** WAVEWATCH III ERROR IN W3STR1 : '/               &
+         '     HIGHT OF WIND SHOULD BE 10m IN THIS APPRACH '/   &
+         '     ZWND =',F8.2,'m'/)
+  END SUBROUTINE W3KOKKOS_FLX1
+#endif
+#ifdef W3_FLX2
+  !/ ------------------------------------------------------------------- /
+  !> W3FLX2 on Kokkos for one point, the argument list of W3FLX2.
+  SUBROUTINE W3KOKKOS_FLX2 ( ZWIND, DEPTH, FP, U, UDIR, UST, USTD, Z0, &
+       CD )
+    USE W3GDATMD, ONLY: IGRID
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: ZWIND, DEPTH, FP, U, UDIR
+    REAL, INTENT(INOUT)     :: UST, USTD, Z0, CD
+    REAL(C_FLOAT)           :: ZW(1), DP(1), FP1(1), U1(1), UD(1),      &
+                               US(1), USD(1), Z01(1), CD1(1)
+    INTEGER(C_INT)          :: IERR
+    ZW(1) = ZWIND
+    DP(1) = DEPTH
+    FP1(1) = FP
+    U1(1) = U
+    UD(1) = UDIR
+    US(1) = UST
+    USD(1) = USTD
+    Z01(1) = Z0
+    CD1(1) = CD
+    !$OMP CRITICAL (WW_KOKKOS_FLX)
+    CALL WW_FLX2 ( IGRID, 1, ZW, DP, FP1, U1, UD, US, USD, Z01, CD1 )
+    IERR = WW_FLX_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_FLX)
+    CALL FLX_CHECK ( 'W3FLX2', IERR )
+    UST = US(1)
+    USTD = USD(1)
+    Z0 = Z01(1)
+    CD = CD1(1)
+  END SUBROUTINE W3KOKKOS_FLX2
+#endif
+#ifdef W3_FLX3
+  !/ ------------------------------------------------------------------- /
+  !> W3FLX3 on Kokkos for one point, the argument list of W3FLX3.
+  SUBROUTINE W3KOKKOS_FLX3 ( ZWIND, DEPTH, FP, U, UDIR, UST, USTD, Z0, &
+       CD )
+    USE W3GDATMD, ONLY: IGRID
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: ZWIND, DEPTH, FP, U, UDIR
+    REAL, INTENT(INOUT)     :: UST, USTD, Z0, CD
+    REAL(C_FLOAT)           :: ZW(1), DP(1), FP1(1), U1(1), UD(1),      &
+                               US(1), USD(1), Z01(1), CD1(1)
+    INTEGER(C_INT)          :: IERR
+    ZW(1) = ZWIND
+    DP(1) = DEPTH
+    FP1(1) = FP
+    U1(1) = U
+    UD(1) = UDIR
+    US(1) = UST
+    USD(1) = USTD
+    Z01(1) = Z0
+    CD1(1) = CD
+    !$OMP CRITICAL (WW_KOKKOS_FLX)
+    CALL WW_FLX3 ( IGRID, 1, ZW, DP, FP1, U1, UD, US, USD, Z01, CD1 )
+    IERR = WW_FLX_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_FLX)
+    CALL FLX_CHECK ( 'W3FLX3', IERR )
+    UST = US(1)
+    USTD = USD(1)
+    Z0 = Z01(1)
+    CD = CD1(1)
+  END SUBROUTINE W3KOKKOS_FLX3
+#endif
+#ifdef W3_FLX4
+  !/ ------------------------------------------------------------------- /
+  !> W3FLX4 on Kokkos for one point, the argument list of W3FLX4. Where
+  !> W3FLX4 stops (w3flx4md.F90:199-202) this writes its message and stops
+  !> with the same code.
+  SUBROUTINE W3KOKKOS_FLX4 ( ZWND, U10, U10D, UST, USTD, Z0, CD )
+    USE W3GDATMD, ONLY: IGRID
+    USE W3ODATMD, ONLY: NDSE, IAPROC, NAPERR
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: ZWND, U10, U10D
+    REAL, INTENT(INOUT)     :: UST, USTD, Z0, CD
+    REAL(C_FLOAT)           :: ZW(1), U1(1), UD(1), US(1), USD(1),      &
+                               Z01(1), CD1(1)
+    INTEGER(C_INT)          :: IEXT(1), IERR
+    ZW(1) = ZWND
+    U1(1) = U10
+    UD(1) = U10D
+    US(1) = UST
+    USD(1) = USTD
+    Z01(1) = Z0
+    CD1(1) = CD
+    IEXT(1) = 0
+    !$OMP CRITICAL (WW_KOKKOS_FLX)
+    CALL WW_FLX4 ( IGRID, 1, ZW, U1, UD, US, USD, Z01, CD1, IEXT )
+    IERR = WW_FLX_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_FLX)
+    CALL FLX_CHECK ( 'W3FLX4', IERR )
+    IF ( IEXT(1) /= 0_C_INT ) THEN
+      IF ( IAPROC .EQ. NAPERR ) WRITE (NDSE,1000) ZWND
+      CALL EXTCDE ( INT(IEXT(1)) )
+    END IF
+    UST = US(1)
+    USTD = USD(1)
+    Z0 = Z01(1)
+    CD = CD1(1)
+    ! The text of w3flx4md.F90:225-227, as W3FLX4 writes it.
+1000 FORMAT (/' *** WAVEWATCH III ERROR IN W3FLX4 : '/               &
+         '     HIGHT OF WIND SHOULD BE 10m IN THIS APPROACH '/   &
+         '     ZWND =',F8.2,'m'/)
+  END SUBROUTINE W3KOKKOS_FLX4
+#endif
+#ifdef W3_FLX5
+  !/ ------------------------------------------------------------------- /
+  !> W3FLX5 on Kokkos for one point, the argument list of W3FLX5. Where
+  !> W3FLX5 stops (w3flx5md.F90:228-231) this writes its message and stops
+  !> with the same code.
+  SUBROUTINE W3KOKKOS_FLX5 ( ZWND, U10, U10D, TAUA, TAUADIR, RHOAIR,   &
+       UST, USTD, Z0, CD, CHARN )
+    USE W3GDATMD, ONLY: IGRID
+    USE W3ODATMD, ONLY: NDSE, IAPROC, NAPERR
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: ZWND, U10, U10D, TAUA, TAUADIR, RHOAIR
+    REAL, INTENT(INOUT)     :: UST, USTD, Z0, CD, CHARN
+    REAL(C_FLOAT)           :: ZW(1), U1(1), UD(1), TA(1), TD(1),       &
+                               RA(1), US(1), USD(1), Z01(1), CD1(1),    &
+                               CH(1)
+    INTEGER(C_INT)          :: IEXT(1), IERR
+    ZW(1) = ZWND
+    U1(1) = U10
+    UD(1) = U10D
+    TA(1) = TAUA
+    TD(1) = TAUADIR
+    RA(1) = RHOAIR
+    US(1) = UST
+    USD(1) = USTD
+    Z01(1) = Z0
+    CD1(1) = CD
+    CH(1) = CHARN
+    IEXT(1) = 0
+    !$OMP CRITICAL (WW_KOKKOS_FLX)
+    CALL WW_FLX5 ( IGRID, 1, ZW, U1, UD, TA, TD, RA, US, USD, Z01, CD1, &
+         CH, IEXT )
+    IERR = WW_FLX_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_FLX)
+    CALL FLX_CHECK ( 'W3FLX5', IERR )
+    IF ( IEXT(1) /= 0_C_INT ) THEN
+      IF ( IAPROC .EQ. NAPERR ) WRITE (NDSE,1000) ZWND
+      CALL EXTCDE ( INT(IEXT(1)) )
+    END IF
+    UST = US(1)
+    USTD = USD(1)
+    Z0 = Z01(1)
+    CD = CD1(1)
+    CHARN = CH(1)
+    ! The text of w3flx5md.F90:254-256, as W3FLX5 writes it.
+1000 FORMAT (/' *** WAVEWATCH III ERROR IN W3FLX5 : '/                 &
+         '     HEIGHT OF WIND SHOULD BE 10m IN THIS APPROACH '/   &
+         '     ZWND =',F8.2,'m'/)
+  END SUBROUTINE W3KOKKOS_FLX5
 #endif
   !/ ------------------------------------------------------------------- /
   !/
