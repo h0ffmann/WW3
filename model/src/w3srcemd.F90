@@ -576,6 +576,10 @@ CONTAINS
 #ifdef W3_ST3
     USE W3SRC3MD
     USE W3GDATMD, ONLY : ZZWND, FFXFM, FFXPM
+#ifdef W3_KOKKOS
+    USE W3KOKKOSMD, ONLY: KOKKOS_SPR3, KOKKOS_SIN3, KOKKOS_SDS3,      &
+         W3KOKKOS_SPR3, W3KOKKOS_SIN3, W3KOKKOS_SDS3
+#endif
 #endif
 #ifdef W3_ST4
     USE W3SRC4MD, ONLY : W3SPR4, W3SIN4, W3SDS4
@@ -1101,20 +1105,65 @@ CONTAINS
       LLWS(:) = .TRUE.
       USTAR=0.
       USTDIR=0.
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SPR3 ) THEN
+        CALL W3KOKKOS_SPR3 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEANS, WNMEAN, &
+             AMAX, U10ABS, U10DIR, USTAR, USTDIR,          &
+             TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS)
+      ELSE
+        CALL W3SPR3 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEANS, WNMEAN, &
+             AMAX, U10ABS, U10DIR, USTAR, USTDIR,          &
+             TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS)
+      END IF
+#else
       CALL W3SPR3 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEANS, WNMEAN, &
            AMAX, U10ABS, U10DIR, USTAR, USTDIR,          &
            TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS)
+#endif
     ELSE
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SPR3 ) THEN
+        CALL W3KOKKOS_SPR3 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEANS, WNMEAN, &
+             AMAX, U10ABS, U10DIR, USTAR, USTDIR,          &
+             TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS)
+      ELSE
+        CALL W3SPR3 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEANS, WNMEAN, &
+             AMAX, U10ABS, U10DIR, USTAR, USTDIR,          &
+             TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS)
+      END IF
+      IF ( KOKKOS_SIN3 ) THEN
+        CALL W3KOKKOS_SIN3 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,   &
+             U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,   &
+             ICE, VSIN, VDIN, LLWS, IX, IY )
+      ELSE
+        CALL W3SIN3 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,   &
+             U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,   &
+             ICE, VSIN, VDIN, LLWS, IX, IY )
+      END IF
+#else
       CALL W3SPR3 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEANS, WNMEAN, &
            AMAX, U10ABS, U10DIR, USTAR, USTDIR,          &
            TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS)
       CALL W3SIN3 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,   &
            U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,   &
            ICE, VSIN, VDIN, LLWS, IX, IY )
+#endif
     END IF
+#ifdef W3_KOKKOS
+    IF ( KOKKOS_SPR3 ) THEN
+      CALL W3KOKKOS_SPR3 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEANS, WNMEAN, &
+           AMAX, U10ABS, U10DIR, USTAR, USTDIR,          &
+           TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS)
+    ELSE
+      CALL W3SPR3 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEANS, WNMEAN, &
+           AMAX, U10ABS, U10DIR, USTAR, USTDIR,          &
+           TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS)
+    END IF
+#else
     CALL W3SPR3 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEANS, WNMEAN, &
          AMAX, U10ABS, U10DIR, USTAR, USTDIR,          &
          TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS)
+#endif
     TWS = 1./FMEANWS
 #endif
 #ifdef W3_ST4
@@ -1339,9 +1388,21 @@ CONTAINS
 #endif
 #endif
 #ifdef W3_ST3
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SIN3 ) THEN
+        CALL W3KOKKOS_SIN3 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS, &
+             U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,       &
+             ICE, VSIN, VDIN, LLWS, IX, IY )
+      ELSE
+        CALL W3SIN3 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,       &
+             U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,       &
+             ICE, VSIN, VDIN, LLWS, IX, IY )
+      END IF
+#else
       CALL W3SIN3 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,       &
            U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY,       &
            ICE, VSIN, VDIN, LLWS, IX, IY )
+#endif
 #endif
 #ifdef W3_ST4
 #if defined(W3_KOKKOS) && !defined(W3_FLX5)
@@ -1451,8 +1512,18 @@ CONTAINS
 #endif
 #endif
 #ifdef W3_ST3
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SDS3 ) THEN
+        CALL W3KOKKOS_SDS3 ( SPEC, WN1, CG1, EMEAN, FMEANS, WNMEAN,     &
+             USTAR, USTDIR, DEPTH, VSDS, VDDS, IX, IY )
+      ELSE
+        CALL W3SDS3 ( SPEC, WN1, CG1, EMEAN, FMEANS, WNMEAN,            &
+             USTAR, USTDIR, DEPTH, VSDS, VDDS, IX, IY )
+      END IF
+#else
       CALL W3SDS3 ( SPEC, WN1, CG1, EMEAN, FMEANS, WNMEAN,              &
            USTAR, USTDIR, DEPTH, VSDS, VDDS, IX, IY )
+#endif
 #endif
 #ifdef W3_ST4
 #if defined(W3_KOKKOS) && !defined(W3_FLX5)
@@ -2061,9 +2132,21 @@ CONTAINS
 #endif
 #endif
 #ifdef W3_ST3
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SPR3 ) THEN
+        CALL W3KOKKOS_SPR3 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEANS, &
+             WNMEAN, AMAX, U10ABS, U10DIR, USTAR, USTDIR, &
+             TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS)
+      ELSE
+        CALL W3SPR3 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEANS,        &
+             WNMEAN, AMAX, U10ABS, U10DIR, USTAR, USTDIR, &
+             TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS)
+      END IF
+#else
       CALL W3SPR3 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEANS,        &
            WNMEAN, AMAX, U10ABS, U10DIR, USTAR, USTDIR, &
            TAUWX, TAUWY, CD, Z0, CHARN, LLWS, FMEANWS)
+#endif
 #endif
 #ifdef W3_ST4
 #if defined(W3_KOKKOS) && !defined(W3_FLX5)
@@ -2202,9 +2285,21 @@ CONTAINS
       ! 6.e  Update wave-supported stress----------------------------------- *
       !
 #ifdef W3_ST3
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SIN3 ) THEN
+        CALL W3KOKKOS_SIN3 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS, &
+             U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY, &
+             ICE, VSIN, VDIN, LLWS, IX, IY )
+      ELSE
+        CALL W3SIN3 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,      &
+             U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY, &
+             ICE, VSIN, VDIN, LLWS, IX, IY )
+      END IF
+#else
       CALL W3SIN3 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,      &
            U10DIR, Z0, CD, TAUWX, TAUWY, TAUWAX, TAUWAY, &
            ICE, VSIN, VDIN, LLWS, IX, IY )
+#endif
 #endif
 #ifdef W3_ST4
 #if defined(W3_KOKKOS) && !defined(W3_FLX5)
