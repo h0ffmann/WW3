@@ -775,6 +775,12 @@ CONTAINS
            ' SPR4=', KOKKOS_SPR4
     END IF
 #endif
+#ifdef W3_ST0
+    IF ( KOKKOS_SPR0 ) THEN
+      CALL W3KOKKOS_ST0_SETUP ( IMOD )
+      WRITE (NDSO,'(A)') '  Kokkos ST0 (W3SPR0) enabled.'
+    END IF
+#endif
 #if defined(W3_ST4) && defined(W3_NL1)
     IF ( KOKKOS_SRCE ) THEN
       CALL W3KOKKOS_SRCE_SETUP ( IMOD )

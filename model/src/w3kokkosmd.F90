@@ -114,6 +114,17 @@ MODULE W3KOKKOSMD
              KOKKOS_SPR4 = .FALSE.
   !> Kokkos W3SRCE (with every source term it calls): WW_KOKKOS_SRCE=1.
   LOGICAL :: KOKKOS_SRCE = .FALSE.
+#ifdef W3_ST0
+  !> Kokkos W3SPR0: WW_KOKKOS_SPR0=1, read by W3KOKKOS_SETUP.
+  LOGICAL :: KOKKOS_SPR0 = .FALSE.
+  !/
+  !/ ST0 packet indices and array ids, 0-based as WwSt0Rpar, WwSt0Ipar and
+  !/ WwSt0Array of ww_kokkos_c.hpp.
+  !/
+  INTEGER, PARAMETER :: R0_FTE = 0, R0_FTF = 1, R0_FTWN = 2, NR0PAR = 3
+  INTEGER, PARAMETER :: I0_NK = 0, I0_NTH = 1, I0_NSPEC = 2, NI0PAR = 3
+  INTEGER, PARAMETER :: A0_SIG = 0, A0_DDEN = 1
+#endif
   !/
   !/ W3SRCE packet indices, 0-based as in ww_kokkos/srce_params.hpp.
   !/
@@ -344,6 +355,54 @@ MODULE W3KOKKOSMD
        IMPORT :: C_INT
      END FUNCTION WW_ST4_LAST_ERROR
      !
+#ifdef W3_ST0
+     !> ST0 configuration of grid IGRID (W3INIT's IMOD): scalars, then each
+     !> array with its LBOUND and SHAPE, then the commit.
+     INTEGER(C_INT) FUNCTION WW_ST0_INIT ( IGRID, RPAR, NR, IPAR, NI )   &
+          BIND(C, NAME='ww_st0_init')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NR, NI
+       REAL(C_FLOAT),  INTENT(IN)      :: RPAR(*)
+       INTEGER(C_INT), INTENT(IN)      :: IPAR(*)
+     END FUNCTION WW_ST0_INIT
+     !
+     INTEGER(C_INT) FUNCTION WW_ST0_SET_REAL ( IGRID, ID, X, RANK, LB,   &
+          EXT ) BIND(C, NAME='ww_st0_set_real')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, ID, RANK
+       REAL(C_FLOAT),  INTENT(IN)      :: X(*)
+       INTEGER(C_INT), INTENT(IN)      :: LB(*), EXT(*)
+     END FUNCTION WW_ST0_SET_REAL
+     !
+     INTEGER(C_INT) FUNCTION WW_ST0_COMMIT ( IGRID )                     &
+          BIND(C, NAME='ww_st0_commit')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE           :: IGRID
+     END FUNCTION WW_ST0_COMMIT
+     !
+     !> W3SPR0. A (NSPEC,NPTS); CG, WN (NK,NPTS); the four results (NPTS).
+     SUBROUTINE WW_SPR0 ( IGRID, NPTS, A, CG, WN, EMEAN, FMEAN, WNMEAN,  &
+          AMAX ) BIND(C, NAME='ww_spr0')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: A(*), CG(*), WN(*)
+       REAL(C_FLOAT),  INTENT(OUT)     :: EMEAN(*), FMEAN(*), WNMEAN(*), &
+                                          AMAX(*)
+     END SUBROUTINE WW_SPR0
+     !
+     !> WHICH = 1 SPR0.
+     INTEGER(C_INT) FUNCTION WW_ST0_ENABLED ( WHICH )                    &
+          BIND(C, NAME='ww_st0_enabled')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE           :: WHICH
+     END FUNCTION WW_ST0_ENABLED
+     !
+     INTEGER(C_INT) FUNCTION WW_ST0_LAST_ERROR ( )                       &
+          BIND(C, NAME='ww_st0_last_error')
+       IMPORT :: C_INT
+     END FUNCTION WW_ST0_LAST_ERROR
+#endif
+     !
   END INTERFACE
   !/
 CONTAINS
@@ -362,8 +421,85 @@ CONTAINS
     KOKKOS_SIN4 = ( WW_ST4_ENABLED(2_C_INT) == 1_C_INT )
     KOKKOS_SPR4 = ( WW_ST4_ENABLED(3_C_INT) == 1_C_INT )
     KOKKOS_SRCE = ( WW_SRCE_ENABLED() == 1_C_INT )
+#ifdef W3_ST0
+    KOKKOS_SPR0 = ( WW_ST0_ENABLED(1_C_INT) == 1_C_INT )
+#endif
     !
   END SUBROUTINE W3KOKKOS_SETUP
+#ifdef W3_ST0
+  !/ ------------------------------------------------------------------- /
+  !> @brief Give the shim grid IMOD's ST0 scalars and arrays.
+  !>
+  !> Call from W3INIT after W3IOGR, with W3SETG done for IMOD, so the
+  !> W3GDATMD aliases hold this grid's values.
+  !>
+  SUBROUTINE W3KOKKOS_ST0_SETUP ( IMOD )
+    USE W3GDATMD, ONLY: NK, NTH, NSPEC, FTE, FTF, FTWN, SIG, DDEN
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: IMOD
+    REAL(C_FLOAT)           :: RPAR(NR0PAR)
+    INTEGER(C_INT)          :: IPAR(NI0PAR)
+    !
+    RPAR(R0_FTE+1)   = FTE
+    RPAR(R0_FTF+1)   = FTF
+    RPAR(R0_FTWN+1)  = FTWN
+    IPAR(I0_NK+1)    = NK
+    IPAR(I0_NTH+1)   = NTH
+    IPAR(I0_NSPEC+1) = NSPEC
+    CALL ST0_CHECK ( 'WW_ST0_INIT',                                     &
+         WW_ST0_INIT ( IMOD, RPAR, NR0PAR, IPAR, NI0PAR ) )
+    ! SIG is SIG(0:MK+1) (w3gdatmd.F90:2066), DDEN is DDEN(MK): the shim
+    ! takes (1:NK) of each from the LBOUND it is given.
+    CALL ST0_SET_R1 ( IMOD, A0_SIG, SIG, LBOUND(SIG) )
+    CALL ST0_SET_R1 ( IMOD, A0_DDEN, DDEN, LBOUND(DDEN) )
+    CALL ST0_CHECK ( 'WW_ST0_COMMIT', WW_ST0_COMMIT ( IMOD ) )
+    !
+  END SUBROUTINE W3KOKKOS_ST0_SETUP
+  !/ ------------------------------------------------------------------- /
+  !> Stop the model on a non-zero status of the shim.
+  SUBROUTINE ST0_CHECK ( WHAT, IERR )
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    CHARACTER(LEN=*), INTENT(IN) :: WHAT
+    INTEGER(C_INT), INTENT(IN)   :: IERR
+    IF ( IERR /= 0_C_INT ) THEN
+      WRITE (NDSE,'(A,I0)') '*** WAVEWATCH III ERROR IN W3KOKKOSMD : '// &
+           'KOKKOS '//WHAT//' FAILED, CODE ', IERR
+      CALL EXTCDE ( 1 )
+    END IF
+  END SUBROUTINE ST0_CHECK
+  !/ ------------------------------------------------------------------- /
+  !> Register one array. X is assumed-shape, so its own bounds are 1-based:
+  !> the actual's LBOUND travels in LB, its SHAPE in SHAPE(X).
+  SUBROUTINE ST0_SET_R1 ( IMOD, ID, X, LB )
+    INTEGER, INTENT(IN)     :: IMOD, ID, LB(1)
+    REAL, INTENT(IN)        :: X(:)
+    CALL ST0_CHECK ( 'WW_ST0_SET_REAL', WW_ST0_SET_REAL ( IMOD, ID, X, &
+         1, INT(LB,C_INT), INT(SHAPE(X),C_INT) ) )
+  END SUBROUTINE ST0_SET_R1
+  !/ ------------------------------------------------------------------- /
+  !> W3SPR0 on Kokkos for one point, the argument list of W3SPR0.
+  !> Serialised: the shim's contexts are unlocked and W3SRCE runs inside
+  !> !$OMP PARALLEL under W3_OMPG / W3_OMP0.
+  SUBROUTINE W3KOKKOS_SPR0 ( A, CG, WN, EMEAN, FMEAN, WNMEAN, AMAX )
+    USE W3GDATMD, ONLY: NK, NSPEC, IGRID
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: A(NSPEC), CG(NK), WN(NK)
+    REAL, INTENT(OUT)       :: EMEAN, FMEAN, WNMEAN, AMAX
+    REAL(C_FLOAT)           :: EM(1), FM(1), WM(1), AM(1)
+    INTEGER(C_INT)          :: IERR
+    !$OMP CRITICAL (WW_KOKKOS_ST0)
+    CALL WW_SPR0 ( IGRID, 1, A, CG, WN, EM, FM, WM, AM )
+    IERR = WW_ST0_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_ST0)
+    CALL ST0_CHECK ( 'W3SPR0', IERR )
+    EMEAN = EM(1)
+    FMEAN = FM(1)
+    WNMEAN = WM(1)
+    AMAX = AM(1)
+  END SUBROUTINE W3KOKKOS_SPR0
+#endif
 #ifdef W3_ST4
   !/ ------------------------------------------------------------------- /
   !> @brief Give the shim grid IMOD's ST4 scalars and arrays.

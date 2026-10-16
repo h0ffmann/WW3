@@ -554,6 +554,9 @@ CONTAINS
 #endif
 #ifdef W3_ST0
     USE W3SRC0MD
+#ifdef W3_KOKKOS
+    USE W3KOKKOSMD, ONLY: KOKKOS_SPR0, W3KOKKOS_SPR0
+#endif
 #endif
 #ifdef W3_ST1
     USE W3SRC1MD
@@ -1046,7 +1049,15 @@ CONTAINS
     ! 1.c Set mean parameters
     !
 #ifdef W3_ST0
+#ifdef W3_KOKKOS
+    IF ( KOKKOS_SPR0 ) THEN
+      CALL W3KOKKOS_SPR0 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX)
+    ELSE
+      CALL W3SPR0 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX)
+    END IF
+#else
     CALL W3SPR0 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX)
+#endif
     FP     = 0.85 * FMEAN
 #endif
 #ifdef W3_ST1
@@ -1954,7 +1965,15 @@ CONTAINS
       !
       !
 #ifdef W3_ST0
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SPR0 ) THEN
+        CALL W3KOKKOS_SPR0 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX)
+      ELSE
+        CALL W3SPR0 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX)
+      END IF
+#else
       CALL W3SPR0 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX)
+#endif
 #endif
 #ifdef W3_ST1
       CALL W3SPR1 (SPEC, CG1, WN1, EMEAN, FMEAN, WNMEAN, AMAX)
