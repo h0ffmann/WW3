@@ -123,14 +123,11 @@ MODULE W3KOKKOSMD
        R_SSINTHP = 14, R_TTAUWSHELTER = 15, R_SSWELLF = 16,            &
        R_SSDSC = R_SSWELLF + 7, R_SSDSBR = R_SSDSC + 21,               &
        R_SINTAILPAR = R_SSDSBR + 1, R_SSDSP = R_SINTAILPAR + 5,        &
-       R_WWNMEANP = R_SSDSP + 1, R_SSTXFTF = R_SSDSP + 2,              &
-       R_SSTXFTWN = R_SSDSP + 3, R_FFXPM = R_SSDSP + 4,                &
-       R_FFXFM = R_SSDSP + 5, R_FFXFA = R_SSDSP + 6,                   &
-       R_SSDSBRF1 = R_SSDSP + 7, R_SSDSBRF2 = R_SSDSP + 8,             &
-       R_SSDSBINT = R_SSDSP + 9, R_SSDSBCK = R_SSDSP + 10,             &
-       R_SSDSHCK = R_SSDSP + 11, R_SSDSABK = R_SSDSP + 12,             &
-       R_SSDSPBK = R_SSDSP + 13, R_SSINBR = R_SSDSP + 14,              &
-       R_CAPCHNK = R_SSDSP + 15, R_ZZWND = R_CAPCHNK + 10,             &
+       R_WWNMEANP = R_SSDSP + 1, R_SSTXFTWN = R_SSDSP + 2,             &
+       R_SSDSBRF1 = R_SSDSP + 3, R_SSDSBINT = R_SSDSP + 4,             &
+       R_SSDSBCK = R_SSDSP + 5, R_SSDSHCK = R_SSDSP + 6,               &
+       R_SSDSABK = R_SSDSP + 7, R_SSDSPBK = R_SSDSP + 8,               &
+       R_CAPCHNK = R_SSDSP + 9, R_ZZWND = R_CAPCHNK + 10,              &
        R_SSDSCOS = R_ZZWND + 1, R_SSDSDTH = R_ZZWND + 2,               &
        R_SSDSBT = R_ZZWND + 3, R_SSDSBM = R_ZZWND + 4,                 &
        R_DELUST = R_SSDSBM + 5, R_DELALP = R_DELUST + 1,               &
@@ -138,9 +135,8 @@ MODULE W3KOKKOSMD
        R_DELTAIL = R_DELUST + 4, R_DELAB = R_DELUST + 5,               &
        NRPAR = R_DELUST + 6
   INTEGER, PARAMETER :: I_NK = 0, I_NTH = 1, I_NSPEC = 2, I_MK = 3,    &
-       I_MTH = 4, I_MSPEC = 5, I_SSWELLFPAR = 6, I_SSDSISO = 7,        &
-       I_SSDSBRFDF = 8, I_STAB3 = 9, I_IG1 = 10, I_FLX5 = 11,          &
-       NIPAR = 12
+       I_MTH = 4, I_MSPEC = 5, I_STAB3 = 6, I_IG1 = 7, I_FLX5 = 8,     &
+       NIPAR = 9
   INTEGER, PARAMETER :: A_SIG = 0, A_SIG2 = 1, A_DSIP = 2, A_DDEN = 3, &
        A_DDEN2 = 4, A_ESIN = 5, A_ECOS = 6, A_TH = 7,                  &
        A_SATWEIGHTS = 8, A_CUMULW = 9, A_DCKI = 10, A_QBI = 11,        &
@@ -317,10 +313,9 @@ CONTAINS
     USE W3GDATMD, ONLY: NK, NTH, NSPEC, DTH, XFR, FTE, FTF, AAIRCMIN,  &
          AAIRGB, WWNMEANPTAIL, SSTXFTFTAIL, AALPHA, BBETA, ZZ0MAX,     &
          ZZ0RAT, ZZALP, SSINTHP, TTAUWSHELTER, SSWELLF, SSDSC, SSDSBR, &
-         SINTAILPAR, SSDSP, WWNMEANP, SSTXFTF, SSTXFTWN, FFXPM, FFXFM, &
-         FFXFA, SSDSBRF1, SSDSBRF2, SSDSBINT, SSDSBCK, SSDSHCK,        &
-         SSDSABK, SSDSPBK, SSINBR, CAPCHNK, ZZWND, SSDSCOS, SSDSDTH,   &
-         SSDSBT, SSDSBM, SSWELLFPAR, SSDSISO, SSDSBRFDF,               &
+         SINTAILPAR, SSDSP, WWNMEANP, SSTXFTWN, SSDSBRF1, SSDSBINT,    &
+         SSDSBCK, SSDSHCK, SSDSABK, SSDSPBK, CAPCHNK, ZZWND, SSDSCOS,  &
+         SSDSDTH, SSDSBT, SSDSBM,                                      &
          SIG, SIG2, DSIP, DDEN, DDEN2, ESIN, ECOS, TH, SATWEIGHTS,     &
          CUMULW, DCKI, QBI, SATINDICES, IKTAB
 #ifdef W3_IG1
@@ -367,19 +362,13 @@ CONTAINS
     END DO
     RPAR(R_SSDSP+1)        = SSDSP
     RPAR(R_WWNMEANP+1)     = WWNMEANP
-    RPAR(R_SSTXFTF+1)      = SSTXFTF
     RPAR(R_SSTXFTWN+1)     = SSTXFTWN
-    RPAR(R_FFXPM+1)        = FFXPM
-    RPAR(R_FFXFM+1)        = FFXFM
-    RPAR(R_FFXFA+1)        = FFXFA
     RPAR(R_SSDSBRF1+1)     = SSDSBRF1
-    RPAR(R_SSDSBRF2+1)     = SSDSBRF2
     RPAR(R_SSDSBINT+1)     = SSDSBINT
     RPAR(R_SSDSBCK+1)      = SSDSBCK
     RPAR(R_SSDSHCK+1)      = SSDSHCK
     RPAR(R_SSDSABK+1)      = SSDSABK
     RPAR(R_SSDSPBK+1)      = SSDSPBK
-    RPAR(R_SSINBR+1)       = SSINBR
     DO J = 1, 10
       RPAR(R_CAPCHNK+J)    = CAPCHNK(J)
     END DO
@@ -406,9 +395,6 @@ CONTAINS
     IPAR(I_MK+1)           = UBOUND(SIG,1) - 1
     IPAR(I_MTH+1)          = SIZE(TH)
     IPAR(I_MSPEC+1)        = SIZE(SIG2)
-    IPAR(I_SSWELLFPAR+1)   = SSWELLFPAR
-    IPAR(I_SSDSISO+1)      = SSDSISO
-    IPAR(I_SSDSBRFDF+1)    = SSDSBRFDF
 #ifdef W3_STAB3
     IPAR(I_STAB3+1)        = 1
 #endif
