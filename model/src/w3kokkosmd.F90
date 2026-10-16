@@ -485,6 +485,85 @@ MODULE W3KOKKOSMD
      !
   END INTERFACE
 #endif
+#ifdef W3_ST2
+  !/
+  !> Kokkos W3SPR2, W3SIN2, W3SDS2: WW_KOKKOS_SPR2/SIN2/SDS2=1, read by
+  !> W3KOKKOS_ST2_SETUP. .FALSE. until then: the Fortran runs.
+  LOGICAL :: KOKKOS_SPR2 = .FALSE., KOKKOS_SIN2 = .FALSE.,             &
+             KOKKOS_SDS2 = .FALSE.
+  !/
+  !/ ST2 packet indices, 0-based as WwSt2Rpar, WwSt2Ipar and WwSt2Array in
+  !/ ww_kokkos_c.hpp: Fortran RPAR(ST2_R_X+1). Change them only with it.
+  !/
+  INTEGER, PARAMETER :: ST2_R_DTH = 0, ST2_R_XFR = 1, ST2_R_FTE = 2,   &
+       ST2_R_FTF = 3, ST2_R_FTWN = 4, ST2_R_FTTR = 5,                   &
+       ST2_R_FPIMIN = 6, ST2_R_ZWIND = 7, ST2_R_FSWELL = 8,             &
+       ST2_R_FACTI1 = 9, ST2_R_FACTI2 = 10, ST2_R_XF1 = 11,             &
+       ST2_R_XF2 = 12, ST2_R_XFH = 13, ST2_R_SDSALN = 14,               &
+       ST2_R_CDSA0 = 15, ST2_R_CDSA1 = 16, ST2_R_CDSA2 = 17,            &
+       ST2_R_CDSB0 = 18, ST2_R_CDSB1 = 19, ST2_R_CDSB2 = 20,            &
+       ST2_R_CDSB3 = 21, ST2_NRPAR = 22
+  INTEGER, PARAMETER :: ST2_I_NK = 0, ST2_I_NTH = 1, ST2_I_NSPEC = 2,  &
+       ST2_NIPAR = 3
+  INTEGER, PARAMETER :: ST2_A_SIG = 0, ST2_A_SIG2 = 1, ST2_A_DDEN = 2, &
+       ST2_A_ECOS = 3, ST2_A_ESIN = 4, ST2_NARRAYS = 5
+  !/
+  INTERFACE
+     INTEGER(C_INT) FUNCTION WW_ST2_INIT ( IGRID, RPAR, NR, IPAR, NI )   &
+          BIND(C, NAME='ww_st2_init')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NR, NI
+       REAL(C_FLOAT),  INTENT(IN)      :: RPAR(*)
+       INTEGER(C_INT), INTENT(IN)      :: IPAR(*)
+     END FUNCTION WW_ST2_INIT
+     INTEGER(C_INT) FUNCTION WW_ST2_SET_REAL ( IGRID, ID, X, RANK, LB,   &
+          EXT ) BIND(C, NAME='ww_st2_set_real')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, ID, RANK
+       REAL(C_FLOAT),  INTENT(IN)      :: X(*)
+       INTEGER(C_INT), INTENT(IN)      :: LB(*), EXT(*)
+     END FUNCTION WW_ST2_SET_REAL
+     INTEGER(C_INT) FUNCTION WW_ST2_COMMIT ( IGRID )                     &
+          BIND(C, NAME='ww_st2_commit')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE           :: IGRID
+     END FUNCTION WW_ST2_COMMIT
+     SUBROUTINE WW_SPR2 ( IGRID, NPTS, A, CG, WN, DEPTH, FPI, U, USTAR,  &
+          EMEAN, FMEAN, WNMEAN, AMAX, ALFA, FP ) BIND(C, NAME='ww_spr2')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: A(*), CG(*), WN(*), DEPTH(*),  &
+                                          FPI(*), U(*), USTAR(*)
+       REAL(C_FLOAT),  INTENT(OUT)     :: EMEAN(*), FMEAN(*), WNMEAN(*), &
+                                          AMAX(*), ALFA(*), FP(*)
+     END SUBROUTINE WW_SPR2
+     SUBROUTINE WW_SIN2 ( IGRID, NPTS, A, CG, K, U, UDIR, CD, Z0, FPI,   &
+          S, D ) BIND(C, NAME='ww_sin2')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: A(*), CG(*), K(*), U(*),       &
+                                          UDIR(*), CD(*), Z0(*)
+       REAL(C_FLOAT),  INTENT(OUT)     :: FPI(*), S(*), D(*)
+     END SUBROUTINE WW_SIN2
+     SUBROUTINE WW_SDS2 ( IGRID, NPTS, A, CG, K, FPI, USTAR, ALFA, S, D ) &
+          BIND(C, NAME='ww_sds2')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, NPTS
+       REAL(C_FLOAT),  INTENT(IN)      :: A(*), CG(*), K(*), FPI(*),     &
+                                          USTAR(*), ALFA(*)
+       REAL(C_FLOAT),  INTENT(OUT)     :: S(*), D(*)
+     END SUBROUTINE WW_SDS2
+     INTEGER(C_INT) FUNCTION WW_ST2_ENABLED ( WHICH )                    &
+          BIND(C, NAME='ww_st2_enabled')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE           :: WHICH
+     END FUNCTION WW_ST2_ENABLED
+     INTEGER(C_INT) FUNCTION WW_ST2_LAST_ERROR ( )                       &
+          BIND(C, NAME='ww_st2_last_error')
+       IMPORT :: C_INT
+     END FUNCTION WW_ST2_LAST_ERROR
+  END INTERFACE
+#endif
   !/
 CONTAINS
   !/ ------------------------------------------------------------------- /
@@ -1152,6 +1231,154 @@ CONTAINS
     !$OMP END CRITICAL (WW_KOKKOS_ST1)
     CALL ST1_CHECK ( 'W3SDS1', IERR )
   END SUBROUTINE W3KOKKOS_SDS1
+#endif
+#ifdef W3_ST2
+  !/ ------------------------------------------------------------------- /
+  !> Read WW_KOKKOS_SPR2/SIN2/SDS2 and, when any is set, configure grid
+  !> IMOD of the ST2 shim from W3GDATMD (after W3IOGR). BETATB, DSIGA and
+  !> DDRAG are PRIVATE to W3SRC2MD: the shim builds them itself with its
+  !> INPTAB at the first commit of the process.
+  SUBROUTINE W3KOKKOS_ST2_SETUP ( IMOD )
+    USE W3GDATMD, ONLY: NK, NTH, NSPEC, DTH, XFR, FTE, FTF, FTWN, FTTR, &
+         FPIMIN, ZWIND, FSWELL, FACTI1, FACTI2, XF1, XF2, XFH, SDSALN,  &
+         CDSA0, CDSA1, CDSA2, CDSB0, CDSB1, CDSB2, CDSB3,               &
+         SIG, SIG2, DDEN, ECOS, ESIN
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: IMOD
+    REAL(C_FLOAT)           :: RPAR(ST2_NRPAR)
+    INTEGER(C_INT)          :: IPAR(ST2_NIPAR)
+    KOKKOS_SPR2 = ( WW_ST2_ENABLED(1_C_INT) == 1_C_INT )
+    KOKKOS_SIN2 = ( WW_ST2_ENABLED(2_C_INT) == 1_C_INT )
+    KOKKOS_SDS2 = ( WW_ST2_ENABLED(3_C_INT) == 1_C_INT )
+    IF ( .NOT. ( KOKKOS_SPR2 .OR. KOKKOS_SIN2 .OR. KOKKOS_SDS2 ) ) RETURN
+    RPAR = 0.
+    IPAR = 0
+    RPAR(ST2_R_DTH+1)    = DTH
+    RPAR(ST2_R_XFR+1)    = XFR
+    RPAR(ST2_R_FTE+1)    = FTE
+    RPAR(ST2_R_FTF+1)    = FTF
+    RPAR(ST2_R_FTWN+1)   = FTWN
+    RPAR(ST2_R_FTTR+1)   = FTTR
+    RPAR(ST2_R_FPIMIN+1) = FPIMIN
+    RPAR(ST2_R_ZWIND+1)  = ZWIND
+    RPAR(ST2_R_FSWELL+1) = FSWELL
+    RPAR(ST2_R_FACTI1+1) = FACTI1
+    RPAR(ST2_R_FACTI2+1) = FACTI2
+    RPAR(ST2_R_XF1+1)    = XF1
+    RPAR(ST2_R_XF2+1)    = XF2
+    RPAR(ST2_R_XFH+1)    = XFH
+    RPAR(ST2_R_SDSALN+1) = SDSALN
+    RPAR(ST2_R_CDSA0+1)  = CDSA0
+    RPAR(ST2_R_CDSA1+1)  = CDSA1
+    RPAR(ST2_R_CDSA2+1)  = CDSA2
+    RPAR(ST2_R_CDSB0+1)  = CDSB0
+    RPAR(ST2_R_CDSB1+1)  = CDSB1
+    RPAR(ST2_R_CDSB2+1)  = CDSB2
+    RPAR(ST2_R_CDSB3+1)  = CDSB3
+    IPAR(ST2_I_NK+1)     = NK
+    IPAR(ST2_I_NTH+1)    = NTH
+    IPAR(ST2_I_NSPEC+1)  = NSPEC
+    CALL ST2_CHECK ( 'WW_ST2_INIT',                                     &
+         WW_ST2_INIT ( IMOD, RPAR, ST2_NRPAR, IPAR, ST2_NIPAR ) )
+    ! The whole arrays with their LBOUND: SIG is (0:MK+1) and the shim
+    ! takes SIG(1:NK+1) from it (W3SDS2 reads SIG(NK+1)).
+    CALL ST2_SET_R1 ( IMOD, ST2_A_SIG, SIG, LBOUND(SIG) )
+    CALL ST2_SET_R1 ( IMOD, ST2_A_SIG2, SIG2, LBOUND(SIG2) )
+    CALL ST2_SET_R1 ( IMOD, ST2_A_DDEN, DDEN, LBOUND(DDEN) )
+    CALL ST2_SET_R1 ( IMOD, ST2_A_ECOS, ECOS, LBOUND(ECOS) )
+    CALL ST2_SET_R1 ( IMOD, ST2_A_ESIN, ESIN, LBOUND(ESIN) )
+    CALL ST2_CHECK ( 'WW_ST2_COMMIT', WW_ST2_COMMIT ( IMOD ) )
+  END SUBROUTINE W3KOKKOS_ST2_SETUP
+  !/ ------------------------------------------------------------------- /
+  !> Stop the run with the shim's status code, as ST4_CHECK does.
+  SUBROUTINE ST2_CHECK ( WHAT, IERR )
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    CHARACTER(LEN=*), INTENT(IN) :: WHAT
+    INTEGER(C_INT), INTENT(IN)   :: IERR
+    IF ( IERR /= 0_C_INT ) THEN
+      WRITE (NDSE,'(A,I0)') '*** WAVEWATCH III ERROR IN W3KOKKOSMD : '// &
+           'KOKKOS '//WHAT//' FAILED, CODE ', IERR
+      CALL EXTCDE ( 1 )
+    END IF
+  END SUBROUTINE ST2_CHECK
+  !/ ------------------------------------------------------------------- /
+  SUBROUTINE ST2_SET_R1 ( IMOD, ID, X, LB )
+    INTEGER, INTENT(IN)     :: IMOD, ID, LB(1)
+    REAL, INTENT(IN)        :: X(:)
+    CALL ST2_CHECK ( 'WW_ST2_SET_REAL', WW_ST2_SET_REAL ( IMOD, ID, X, &
+         1, INT(LB,C_INT), INT(SHAPE(X),C_INT) ) )
+  END SUBROUTINE ST2_SET_R1
+  !/ ------------------------------------------------------------------- /
+  !> W3SPR2 (w3src2md.F90:125) on Kokkos, same dummy list. The shim's
+  !> contexts are unlocked and W3SRCE may run inside an OpenMP parallel
+  !> region (W3_OMPG): the call and its status read are serialised.
+  SUBROUTINE W3KOKKOS_SPR2 ( A, CG, WN, DEPTH, FPI, U, USTAR, EMEAN,   &
+       FMEAN, WNMEAN, AMAX, ALFA, FP )
+    USE W3GDATMD, ONLY: NK, NTH, IGRID
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: A(NTH,NK), CG(NK), WN(NK), DEPTH, FPI,  &
+                               U, USTAR
+    REAL, INTENT(OUT)       :: EMEAN, FMEAN, WNMEAN, AMAX, ALFA(NK), FP
+    REAL(C_FLOAT)           :: DP1(1), FPI1(1), U1(1), US1(1), EM1(1),  &
+                               FM1(1), WM1(1), AM1(1), FP1(1)
+    INTEGER(C_INT)          :: IERR
+    DP1(1) = DEPTH
+    FPI1(1) = FPI
+    U1(1) = U
+    US1(1) = USTAR
+    !$OMP CRITICAL (WW_KOKKOS_ST2)
+    CALL WW_SPR2 ( IGRID, 1, A, CG, WN, DP1, FPI1, U1, US1, EM1, FM1,  &
+         WM1, AM1, ALFA, FP1 )
+    IERR = WW_ST2_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_ST2)
+    CALL ST2_CHECK ( 'W3SPR2', IERR )
+    EMEAN = EM1(1)
+    FMEAN = FM1(1)
+    WNMEAN = WM1(1)
+    AMAX = AM1(1)
+    FP = FP1(1)
+  END SUBROUTINE W3KOKKOS_SPR2
+  !/ ------------------------------------------------------------------- /
+  !> W3SIN2 (w3src2md.F90:308) on Kokkos, same dummy list.
+  SUBROUTINE W3KOKKOS_SIN2 ( A, CG, K, U, UDIR, CD, Z0, FPI, S, D )
+    USE W3GDATMD, ONLY: NK, NSPEC, IGRID
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: A(NSPEC), CG(NK), K(NSPEC), U, UDIR,    &
+                               CD, Z0
+    REAL, INTENT(OUT)       :: S(NSPEC), D(NSPEC), FPI
+    REAL(C_FLOAT)           :: U1(1), UD1(1), CD1(1), Z01(1), FPI1(1)
+    INTEGER(C_INT)          :: IERR
+    U1(1) = U
+    UD1(1) = UDIR
+    CD1(1) = CD
+    Z01(1) = Z0
+    !$OMP CRITICAL (WW_KOKKOS_ST2)
+    CALL WW_SIN2 ( IGRID, 1, A, CG, K, U1, UD1, CD1, Z01, FPI1, S, D )
+    IERR = WW_ST2_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_ST2)
+    CALL ST2_CHECK ( 'W3SIN2', IERR )
+    FPI = FPI1(1)
+  END SUBROUTINE W3KOKKOS_SIN2
+  !/ ------------------------------------------------------------------- /
+  !> W3SDS2 (w3src2md.F90:582) on Kokkos, same dummy list.
+  SUBROUTINE W3KOKKOS_SDS2 ( A, CG, K, FPI, USTAR, ALFA, S, D )
+    USE W3GDATMD, ONLY: NK, NTH, IGRID
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: A(NTH,NK), CG(NK), K(NK), FPI, USTAR,   &
+                               ALFA(NK)
+    REAL, INTENT(OUT)       :: S(NTH,NK), D(NTH,NK)
+    REAL(C_FLOAT)           :: FPI1(1), US1(1)
+    INTEGER(C_INT)          :: IERR
+    FPI1(1) = FPI
+    US1(1) = USTAR
+    !$OMP CRITICAL (WW_KOKKOS_ST2)
+    CALL WW_SDS2 ( IGRID, 1, A, CG, K, FPI1, US1, ALFA, S, D )
+    IERR = WW_ST2_LAST_ERROR()
+    !$OMP END CRITICAL (WW_KOKKOS_ST2)
+    CALL ST2_CHECK ( 'W3SDS2', IERR )
+  END SUBROUTINE W3KOKKOS_SDS2
 #endif
   !/ ------------------------------------------------------------------- /
   !/

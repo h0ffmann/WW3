@@ -568,6 +568,10 @@ CONTAINS
 #ifdef W3_ST2
     USE W3SRC2MD
     USE W3GDATMD, ONLY : ZWIND, XFC, XFT
+#ifdef W3_KOKKOS
+    USE W3KOKKOSMD, ONLY: KOKKOS_SPR2, KOKKOS_SIN2, KOKKOS_SDS2,      &
+         W3KOKKOS_SPR2, W3KOKKOS_SIN2, W3KOKKOS_SDS2
+#endif
 #endif
 #ifdef W3_ST3
     USE W3SRC3MD
@@ -1077,8 +1081,18 @@ CONTAINS
     FP     = 0.85 * FMEAN
 #endif
 #ifdef W3_ST2
+#ifdef W3_KOKKOS
+    IF ( KOKKOS_SPR2 ) THEN
+      CALL W3KOKKOS_SPR2 (SPEC, CG1, WN1, DEPTH, FPI, U10ABS, USTAR, &
+           EMEAN, FMEAN, WNMEAN, AMAX, ALPHA, FP )
+    ELSE
+      CALL W3SPR2 (SPEC, CG1, WN1, DEPTH, FPI, U10ABS, USTAR,    &
+           EMEAN, FMEAN, WNMEAN, AMAX, ALPHA, FP )
+    END IF
+#else
     CALL W3SPR2 (SPEC, CG1, WN1, DEPTH, FPI, U10ABS, USTAR,    &
          EMEAN, FMEAN, WNMEAN, AMAX, ALPHA, FP )
+#endif
 #endif
 #ifdef W3_ST3
     TAUWX=0.
@@ -1311,8 +1325,18 @@ CONTAINS
 #endif
 #endif
 #ifdef W3_ST2
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SIN2 ) THEN
+        CALL W3KOKKOS_SIN2 ( SPEC, CG1, WN2, U10ABS, U10DIR, CD, Z0, &
+             FPI, VSIN, VDIN )
+      ELSE
+        CALL W3SIN2 ( SPEC, CG1, WN2, U10ABS, U10DIR, CD, Z0,        &
+             FPI, VSIN, VDIN )
+      END IF
+#else
       CALL W3SIN2 ( SPEC, CG1, WN2, U10ABS, U10DIR, CD, Z0,        &
            FPI, VSIN, VDIN )
+#endif
 #endif
 #ifdef W3_ST3
       CALL W3SIN3 ( SPEC, CG1, WN2, U10ABS, USTAR, DRAT, AS,       &
@@ -1416,7 +1440,15 @@ CONTAINS
 #endif
 #endif
 #ifdef W3_ST2
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SDS2 ) THEN
+        CALL W3KOKKOS_SDS2 ( SPEC, CG1, WN1, FPI, USTAR, ALPHA, VSDS, VDDS )
+      ELSE
+        CALL W3SDS2 ( SPEC, CG1, WN1, FPI, USTAR, ALPHA,VSDS, VDDS )
+      END IF
+#else
       CALL W3SDS2 ( SPEC, CG1, WN1, FPI, USTAR, ALPHA,VSDS, VDDS )
+#endif
 #endif
 #ifdef W3_ST3
       CALL W3SDS3 ( SPEC, WN1, CG1, EMEAN, FMEANS, WNMEAN,              &
@@ -2015,8 +2047,18 @@ CONTAINS
 #endif
 #endif
 #ifdef W3_ST2
+#ifdef W3_KOKKOS
+      IF ( KOKKOS_SPR2 ) THEN
+        CALL W3KOKKOS_SPR2 (SPEC, CG1, WN1, DEPTH, FPI, U10ABS, USTAR, &
+             EMEAN, FMEAN, WNMEAN, AMAX, ALPHA, FP )
+      ELSE
+        CALL W3SPR2 (SPEC, CG1, WN1, DEPTH, FPI, U10ABS, USTAR,   &
+             EMEAN, FMEAN, WNMEAN, AMAX, ALPHA, FP )
+      END IF
+#else
       CALL W3SPR2 (SPEC, CG1, WN1, DEPTH, FPI, U10ABS, USTAR,   &
            EMEAN, FMEAN, WNMEAN, AMAX, ALPHA, FP )
+#endif
 #endif
 #ifdef W3_ST3
       CALL W3SPR3 (SPEC, CG1, WN1, EMEAN, FMEAN, FMEANS,        &
