@@ -475,6 +475,27 @@ MODULE W3KOKKOSMD
        INTEGER(C_INT), INTENT(OUT)     :: SHAVE(*)
      END SUBROUTINE WW_SRCE_BATCH
      !
+     !> WW_SRCE_BATCH on the resident spectrum (ww_kokkos 0.5, resident_c.hpp):
+     !> the spectra are the columns JSEA(1:NPTS) of VA(NSPEC,0:NSEALM), read
+     !> and written in the shim's device copy of VA; the host VA is left to the
+     !> sync calls of W3KOKKOS_RESIDENTMD. Status in WW_SRCE_LAST_ERROR().
+     SUBROUTINE WW_SRCE_BATCH_VA ( IGRID, IT, INFLAGS24, FLOGRD57,       &
+          FLOGRD58, DTG, VA, NSPEC, NSEALM, NPTS, JSEA, WN1, CG1, PIN,   &
+          PSC, WHITECAP, TAUBBL, TAUICE, SHAVE )                         &
+          BIND(C, NAME='ww_srce_batch_va')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, IT, INFLAGS24,          &
+                                          FLOGRD57, FLOGRD58, NSPEC,     &
+                                          NSEALM, NPTS
+       REAL(C_FLOAT),  VALUE           :: DTG
+       REAL(C_FLOAT),  INTENT(INOUT)   :: VA(*)
+       INTEGER(C_INT), INTENT(IN)      :: JSEA(*)
+       REAL(C_FLOAT),  INTENT(IN)      :: WN1(*), CG1(*), PIN(*)
+       REAL(C_FLOAT),  INTENT(INOUT)   :: PSC(*), WHITECAP(*),           &
+                                          TAUBBL(*), TAUICE(*)
+       INTEGER(C_INT), INTENT(OUT)     :: SHAVE(*)
+     END SUBROUTINE WW_SRCE_BATCH_VA
+     !
      INTEGER(C_INT) FUNCTION WW_SRCE_ENABLED ( )                         &
           BIND(C, NAME='ww_srce_enabled')
        IMPORT :: C_INT
@@ -1838,6 +1859,10 @@ CONTAINS
   !> with MAPSTA(IY,IX) == 1 and FLAGST(ISEA) is packed with the arguments
   !> W3KOKKOS_SRCE takes for it, the shim runs them all, and the results are
   !> unpacked to the same arrays; every other point gets the loop's UNDEF.
+  !> The spectrum is not packed: the shim reads and writes VA(:,JSEA) of the
+  !> listed points in its resident device copy (ww3-gpu WFIP-0005 unit 2),
+  !> and W3WAVE's sync calls (W3KOKKOS_RESIDENTMD) bring it back to the host
+  !> before the next host statement that touches VA.
   !> Call only when W3KOKKOS_SRCE_ON(IT): that test reads no point, so it
   !> holds for every point of the step. The points are independent (each
   !> reads and writes only its own JSEA, ISEA), as the loop's
@@ -1849,7 +1874,7 @@ CONTAINS
   !> arrays, not module data, so they come as arguments.
   SUBROUTINE W3KOKKOS_SRCE_BATCH ( IT, DTG, TAUWX, TAUWY )
     USE CONSTANTS, ONLY: UNDEF
-    USE W3GDATMD, ONLY: NK, NSPEC, NSEAL, IGRID, MAPSF, MAPSTA, FLAGST
+    USE W3GDATMD, ONLY: NK, NSEAL, IGRID, MAPSF, MAPSTA, FLAGST
     USE W3WDATMD, ONLY: VA, UST, USTDIR, ICE, RHOAIR, ASF
     USE W3ADATMD, ONLY: WN, CG, DW, U10, U10D, AS, DTDYN, FCUT,        &
          TAUOX, TAUOY, TAUWIX, TAUWIY, TAUWNX, TAUWNY, PHIAW,    &
@@ -1862,22 +1887,19 @@ CONTAINS
     INTEGER, INTENT(IN)     :: IT
     REAL, INTENT(IN)        :: DTG
     REAL, INTENT(INOUT)     :: TAUWX(NSEAL), TAUWY(NSEAL)
-    REAL(C_FLOAT), ALLOCATABLE, SAVE  :: BSPEC(:,:), BWN1(:,:),        &
+    REAL(C_FLOAT), ALLOCATABLE, SAVE  :: BWN1(:,:),                    &
          BCG1(:,:), BPIN(:,:), BPSC(:,:), BWC(:,:), BTB(:,:), BTI(:,:)
-    INTEGER(C_INT), ALLOCATABLE, SAVE :: BSH(:)
-    INTEGER, ALLOCATABLE, SAVE        :: BJSEA(:)
+    INTEGER(C_INT), ALLOCATABLE, SAVE :: BSH(:), BJSEA(:)
     INTEGER                 :: JSEA, ISEA, IX, IY, IP, NPTS
     INTEGER(C_INT)          :: IERR
     !
     IF ( ALLOCATED(BJSEA) ) THEN
-      IF ( SIZE(BJSEA) < NSEAL .OR. SIZE(BSPEC,1) /= NSPEC .OR.          &
-           SIZE(BWN1,1) /= NK ) THEN
-        DEALLOCATE ( BSPEC, BWN1, BCG1, BPIN, BPSC, BWC, BTB, BTI, BSH, &
-             BJSEA )
+      IF ( SIZE(BJSEA) < NSEAL .OR. SIZE(BWN1,1) /= NK ) THEN
+        DEALLOCATE ( BWN1, BCG1, BPIN, BPSC, BWC, BTB, BTI, BSH, BJSEA )
       END IF
     END IF
     IF ( .NOT. ALLOCATED(BJSEA) ) THEN
-      ALLOCATE ( BSPEC(NSPEC,NSEAL), BWN1(NK,NSEAL), BCG1(NK,NSEAL),    &
+      ALLOCATE ( BWN1(NK,NSEAL), BCG1(NK,NSEAL),                        &
            BPIN(SRCEB_NPIN,NSEAL), BPSC(SRCEB_NPSC,NSEAL),              &
            BWC(4,NSEAL), BTB(2,NSEAL), BTI(2,NSEAL), BSH(NSEAL),        &
            BJSEA(NSEAL) )
@@ -1892,7 +1914,6 @@ CONTAINS
         NPTS = NPTS + 1
         IP = NPTS
         BJSEA(IP) = JSEA
-        BSPEC(:,IP) = VA(:,JSEA)
         BWN1(:,IP) = WN(1:NK,ISEA)
         BCG1(:,IP) = CG(1:NK,ISEA)
         BPIN(SRCEB_I_D_INP+1,IP)  = DW(ISEA)
@@ -1935,17 +1956,18 @@ CONTAINS
       END IF
     END DO
     !
-    CALL WW_SRCE_BATCH ( IGRID, IT, MERGE(1_C_INT, 0_C_INT, INFLAGS2(4)), &
+    CALL WW_SRCE_BATCH_VA ( IGRID, IT,                                   &
+         MERGE(1_C_INT, 0_C_INT, INFLAGS2(4)),                          &
          MERGE(1_C_INT, 0_C_INT, FLOGRD(5,7)),                          &
-         MERGE(1_C_INT, 0_C_INT, FLOGRD(5,8)), DTG, NPTS, BSPEC, BWN1,  &
-         BCG1, BPIN, BPSC, BWC, BTB, BTI, BSH )
+         MERGE(1_C_INT, 0_C_INT, FLOGRD(5,8)), DTG, VA, SIZE(VA,1),     &
+         UBOUND(VA,2), NPTS, BJSEA, BWN1, BCG1, BPIN, BPSC, BWC, BTB,   &
+         BTI, BSH )
     IERR = WW_SRCE_LAST_ERROR()
     CALL SRCE_CHECK ( 'W3SRCE (batched)', IERR )
     !
     DO IP = 1, NPTS
       JSEA = BJSEA(IP)
       CALL INIT_GET_ISEA ( ISEA, JSEA )
-      VA(:,JSEA)     = BSPEC(:,IP)
       UST(ISEA)      = BPSC(SRCEB_S_USTAR+1,IP)
       USTDIR(ISEA)   = BPSC(SRCEB_S_USTDIR+1,IP)
       TAUWX(JSEA)    = BPSC(SRCEB_S_TAUWX+1,IP)

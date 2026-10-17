@@ -2369,7 +2369,11 @@ CONTAINS
 #endif
 #endif
               !
-#ifdef W3_KOKKOS
+#if defined(W3_KOKKOS) && defined(W3_ST4) && defined(W3_NL1) && !defined(W3_PDLIB)
+              ! ww3-gpu: VA current on the host before the Fortran source terms; the batch
+              ! below reads and writes the resident VA itself (PATCH.md section 11).
+              IF ( .NOT. W3KOKKOS_SRCE_ON(IT) ) CALL W3KOKKOS_VA_HOST_WRITE
+#elif defined(W3_KOKKOS)
               ! ww3-gpu: VA current on the host before the source terms (PATCH.md section 11).
               CALL W3KOKKOS_VA_HOST_WRITE
 #endif
