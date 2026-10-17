@@ -2645,8 +2645,9 @@ CONTAINS
 #endif
       !
       IF ( DTTST.LE.0. .AND. DTTST1.NE.0. .AND. FLAG_O ) THEN
-#ifdef W3_KOKKOS
-        ! ww3-gpu: VA current on the host for every output below (PATCH.md section 11).
+#if defined(W3_KOKKOS) && defined(W3_MPI)
+        ! ww3-gpu: VA current on the host for every output below (PATCH.md section 11); the MPI
+        ! requests started below send VA.
         CALL W3KOKKOS_VA_HOST_READ
 #endif
         !
@@ -2676,9 +2677,27 @@ CONTAINS
         WRITE (NDST,9042) LOCAL, FLPART, FLOUTG
 #endif
         !
+#if defined(W3_KOKKOS) && !defined(W3_MPI)
+        ! ww3-gpu: VA current on the host before each reader of it below, not once for all, so
+        ! that an output time with W3OUTG on Kokkos copies no VA (PATCH.md section 15).
+        IF ( LOCAL .AND. FLPART ) CALL W3KOKKOS_VA_HOST_READ
+#endif
         IF ( LOCAL .AND. FLPART ) CALL W3CPRT ( IMOD )
         IF ( LOCAL .AND. (FLOUTG .OR. FLOUTG2) ) then
+#ifdef W3_KOKKOS
+          ! ww3-gpu: W3OUTG on the resident VA under WW_KOKKOS_OUTG=1; W3KOKKOS_OUTG calls the
+          ! Fortran W3OUTG for the fields it leaves to it (PATCH.md section 15).
+          IF ( KOKKOS_OUTG ) THEN
+            CALL W3KOKKOS_OUTG ( FLPFLD, FLOUTG, FLOUTG2 )
+          ELSE
+#ifndef W3_MPI
+            CALL W3KOKKOS_VA_HOST_READ
+#endif
+#endif
           CALL W3OUTG ( VA, FLPFLD, FLOUTG, FLOUTG2 )
+#ifdef W3_KOKKOS
+          END IF
+#endif
         end if
         !
 #ifdef W3_MPI
@@ -2878,6 +2897,9 @@ CONTAINS
                   !
                   !   Gets the necessary spectral data
                   !
+#if defined(W3_KOKKOS) && !defined(W3_MPI)
+                  CALL W3KOKKOS_VA_HOST_READ
+#endif
                   CALL W3IOPE ( VA )
 #ifdef W3_BIN2NC
                   CALL W3IOPON ( 'WRITE', NDS(8), ITEST, IMOD )
@@ -2894,8 +2916,14 @@ CONTAINS
                 !
                 ! Track output
                 !
+#if defined(W3_KOKKOS) && !defined(W3_MPI)
+                CALL W3KOKKOS_VA_HOST_READ
+#endif
                 CALL W3IOTR ( NDS(11), NDS(12), VA, IMOD )
               ELSE IF ( J .EQ. 4 ) THEN
+#if defined(W3_KOKKOS) && !defined(W3_MPI)
+                CALL W3KOKKOS_VA_HOST_READ
+#endif
                 CALL W3IORS ('HOT', NDS(6), XXX, IMOD, FLOUT(8) )
                 ITEST = RSTYPE
               ELSE IF ( J .EQ. 5 ) THEN
@@ -2903,10 +2931,16 @@ CONTAINS
 #ifdef W3_MPI
                   IF (NRQBP2.NE.0) CALL MPI_WAITALL ( NRQBP2, IRQBP2,STATIO, IERR_MPI )
 #endif
+#if defined(W3_KOKKOS) && !defined(W3_MPI)
+                  CALL W3KOKKOS_VA_HOST_READ
+#endif
                   CALL W3IOBC ( 'WRITE', NDS(10),         &
                        TIME, TIME, ITEST, IMOD )
                 END IF
               ELSE IF ( J .EQ. 6 ) THEN
+#if defined(W3_KOKKOS) && !defined(W3_MPI)
+                CALL W3KOKKOS_VA_HOST_READ
+#endif
                 CALL W3IOSF ( NDS(13), IMOD )
 #ifdef W3_OASIS
               ELSE IF ( J .EQ. 7 ) THEN
@@ -2919,6 +2953,9 @@ CONTAINS
                     IF ( (CPLT0 .AND. (DSEC21 (TIME, TIMEN) .GT. 0.0)) .OR. &
                          .NOT. CPLT0 ) THEN
                       IF (CPLT0) ID_OASIS_TIME = NINT(DSEC21 ( TIME00 , TIME ))
+#if defined(W3_KOKKOS) && !defined(W3_MPI)
+                      CALL W3KOKKOS_VA_HOST_READ
+#endif
 
 #endif
 #ifdef W3_OASACM
@@ -2983,6 +3020,9 @@ CONTAINS
           TOUT(:) = TONEXT(:,J)
           DTTST   = DSEC21 ( TIME, TOUT )
           IF ( DTTST .EQ. 0. ) THEN
+#if defined(W3_KOKKOS) && !defined(W3_MPI)
+            CALL W3KOKKOS_VA_HOST_READ
+#endif
             CALL W3IORS ('HOT', NDS(6), XXX, IMOD, FLOUT(8) )
             ITEST = RSTYPE
             CALL TICK21 ( TOUT, DTOUT(J) )
