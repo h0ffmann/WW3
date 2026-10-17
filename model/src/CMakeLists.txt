@@ -33,12 +33,14 @@ if(WW_KOKKOS)
   if("ST4" IN_LIST switches AND "FLX5" IN_LIST switches)
     message(FATAL_ERROR "The Kokkos ST4 path does not support FLX5: drop KOKKOS or FLX5")
   endif()
-  # 0.8 is the first ABI with the partial read of the resident VA (ww_va_host_read_cols);
+  # 0.9 is the first ABI with the zeroed columns repeated on the resident VA
+  # (ww_va_host_update, ww_va_device_zero_cols); 0.8 added the partial read
+  # (ww_va_host_read_cols);
   # 0.7 added W3OUTG on the resident VA (ww_outg_va); 0.6 added the
   # propagation on the resident VA (ww_xyp3_batch_va, ww_ktp3_batch_va); 0.5 added the resident VA (ww_va_*, ww_srce_batch_va) and covers
   # ww_xyp3_batch and ww_ktp3_batch, added under 0.4; 0.4 added ww_srce_batch, 0.3
   # ww_kokkos_flag and the ww_wave_* entry points.
-  find_package(ww_kokkos 0.8 REQUIRED)
+  find_package(ww_kokkos 0.9 REQUIRED)
   target_link_libraries(ww3_lib PUBLIC ww_kokkos::ww_kokkos)
   # Wiring units (h0ffmann/ww3-gpu, kokkos/src/fortran_iface/PATCH.md section 9): each
   # unit is one file w3kokkos_<unit>md.F90 holding MODULE W3KOKKOS_<UNIT>MD and its

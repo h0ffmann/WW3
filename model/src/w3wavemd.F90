@@ -1385,10 +1385,18 @@ CONTAINS
           !
           IF ( IDACT(13:13).NE.' ' ) THEN
 #ifdef W3_KOKKOS
-            ! ww3-gpu: VA current on the host before W3UICE writes it (PATCH.md section 11).
-            CALL W3KOKKOS_VA_HOST_WRITE
-#endif
+            ! ww3-gpu: under WW_KOKKOS_UPDV=1, W3UICE's zeroing of VA is repeated on the
+            ! device copy and no VA crosses (PATCH.md section 17); else VA current on the
+            ! host before W3UICE writes it (section 11).
+            IF ( KOKKOS_UPDV ) THEN
+              CALL W3KOKKOS_UICE ( VA )
+            ELSE
+              CALL W3KOKKOS_VA_HOST_WRITE
+              CALL W3UICE ( VA )
+            END IF
+#else
             CALL W3UICE ( VA )
+#endif
             DTI0   = 0.
             FLACT  = .TRUE.
             FLMAP  = .TRUE.
