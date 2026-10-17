@@ -1298,6 +1298,10 @@ CONTAINS
 #ifdef W3_TIMINGS
         CALL PRINT_MY_TIME("Before call W3UINI")
 #endif
+#ifdef W3_KOKKOS
+        ! ww3-gpu: VA current on the host before W3UINI writes it (PATCH.md section 11).
+        IF ( FLIWND .AND. LOCAL ) CALL W3KOKKOS_VA_HOST_WRITE
+#endif
         IF ( FLIWND .AND. LOCAL ) CALL W3UINI ( VA )
         !
         IF ( FLTAUA ) THEN
@@ -1380,6 +1384,10 @@ CONTAINS
           END IF
           !
           IF ( IDACT(13:13).NE.' ' ) THEN
+#ifdef W3_KOKKOS
+            ! ww3-gpu: VA current on the host before W3UICE writes it (PATCH.md section 11).
+            CALL W3KOKKOS_VA_HOST_WRITE
+#endif
             CALL W3UICE ( VA )
             DTI0   = 0.
             FLACT  = .TRUE.
@@ -1464,6 +1472,10 @@ CONTAINS
           !
           IF ( IDACT(5:5).NE.' ' ) THEN
 
+#ifdef W3_KOKKOS
+            ! ww3-gpu: VA current on the host before W3ULEV rescales it (PATCH.md section 11).
+            CALL W3KOKKOS_VA_HOST_WRITE
+#endif
             CALL W3ULEV ( VA, VA )
 
             UGDTUPDATE=.TRUE.
@@ -1860,6 +1872,8 @@ CONTAINS
 #endif
             IF ( FLCTH .OR. FLCK ) THEN
 #ifdef W3_KOKKOS
+              ! ww3-gpu: VA current on the host before W3KTP3 (part 1), outside the region (PATCH.md 11).
+              CALL W3KOKKOS_VA_HOST_WRITE
               ! ww3-gpu: part 1 of W3KTP3 on Kokkos under WW_KOKKOS_KTP3=1.
               IF ( KOKKOS_KTP3 ) THEN
                 CALL W3KOKKOS_KTP3 ( FACTH, FACK, ITLOCH )
@@ -2005,6 +2019,10 @@ CONTAINS
 #endif
             ELSE
               IF (FLCX .or. FLCY) THEN
+#ifdef W3_KOKKOS
+                ! ww3-gpu: VA current on the host before W3GATH/W3SCAT (PATCH.md section 11).
+                CALL W3KOKKOS_VA_HOST_WRITE
+#endif
                 !
 #ifdef W3_MPI
                 IF ( NRQSG1 .GT. 0 ) THEN
@@ -2220,6 +2238,8 @@ CONTAINS
             !
             IF ( FLCTH .OR. FLCK ) THEN
 #ifdef W3_KOKKOS
+              ! ww3-gpu: VA current on the host before W3KTP3 (part 2), outside the region (PATCH.md 11).
+              CALL W3KOKKOS_VA_HOST_WRITE
               ! ww3-gpu: part 2 of W3KTP3 on Kokkos under WW_KOKKOS_KTP3=1.
               IF ( KOKKOS_KTP3 ) THEN
                 CALL W3KOKKOS_KTP3 ( FACTH, FACK, NTLOC-ITLOCH )
@@ -2349,6 +2369,10 @@ CONTAINS
 #endif
 #endif
               !
+#ifdef W3_KOKKOS
+              ! ww3-gpu: VA current on the host before the source terms (PATCH.md section 11).
+              CALL W3KOKKOS_VA_HOST_WRITE
+#endif
 #if defined(W3_KOKKOS) && defined(W3_ST4) && defined(W3_NL1) && !defined(W3_PDLIB)
               ! ww3-gpu: every sea point of the step in one Kokkos launch
               ! (WW_KOKKOS_SRCE=1); the loop below is the Fortran's, unchanged.
@@ -2601,6 +2625,10 @@ CONTAINS
 #endif
       !
       IF ( DTTST.LE.0. .AND. DTTST1.NE.0. .AND. FLAG_O ) THEN
+#ifdef W3_KOKKOS
+        ! ww3-gpu: VA current on the host for every output below (PATCH.md section 11).
+        CALL W3KOKKOS_VA_HOST_READ
+#endif
         !
 #ifdef W3_T
         WRITE (NDST,9041)
@@ -3046,6 +3074,10 @@ CONTAINS
 
     IF ( IAPROC .EQ. NAPLOG ) WRITE (NDSO,902)
     !
+#ifdef W3_KOKKOS
+    ! ww3-gpu: VA current on the host when W3WAVE returns to its caller (PATCH.md section 11).
+    CALL W3KOKKOS_VA_HOST_READ
+#endif
     DEALLOCATE(FIELD)
     DEALLOCATE(TAUWX, TAUWY)
     !
