@@ -1872,8 +1872,9 @@ CONTAINS
 #endif
             IF ( FLCTH .OR. FLCK ) THEN
 #ifdef W3_KOKKOS
-              ! ww3-gpu: VA current on the host before W3KTP3 (part 1), outside the region (PATCH.md 11).
-              CALL W3KOKKOS_VA_HOST_WRITE
+              ! ww3-gpu: VA current on the host before the Fortran W3KTP3 (part 1), outside the
+              ! region; W3KOKKOS_KTP3 works on the resident VA itself (PATCH.md 11, 13).
+              IF ( .NOT. KOKKOS_KTP3 ) CALL W3KOKKOS_VA_HOST_WRITE
               ! ww3-gpu: part 1 of W3KTP3 on Kokkos under WW_KOKKOS_KTP3=1.
               IF ( KOKKOS_KTP3 ) THEN
                 CALL W3KOKKOS_KTP3 ( FACTH, FACK, ITLOCH )
@@ -1969,6 +1970,9 @@ CONTAINS
 
             call print_memcheck(memunit, 'memcheck_____:'//' WW3_WAVE TIME LOOP 16')
 
+#if defined(W3_DEBUGCOH) && defined(W3_KOKKOS)
+            CALL W3KOKKOS_VA_HOST_READ
+#endif
 #ifdef W3_DEBUGCOH
             CALL ALL_VA_INTEGRAL_PRINT(IMOD, "Before spatial advection", 1)
 #endif
@@ -2020,8 +2024,9 @@ CONTAINS
             ELSE
               IF (FLCX .or. FLCY) THEN
 #ifdef W3_KOKKOS
-                ! ww3-gpu: VA current on the host before W3GATH/W3SCAT (PATCH.md section 11).
-                CALL W3KOKKOS_VA_HOST_WRITE
+                ! ww3-gpu: VA current on the host before W3GATH/W3SCAT (PATCH.md section 11);
+                ! W3KOKKOS_XYP3 works on the resident VA itself (section 13).
+                IF ( .NOT. KOKKOS_XYP3 ) CALL W3KOKKOS_VA_HOST_WRITE
 #endif
                 !
 #ifdef W3_MPI
@@ -2141,6 +2146,10 @@ CONTAINS
                 IK=1
                 IX=1
                 IY=1
+#if defined(W3_SMC) && defined(W3_KOKKOS)
+                ! ww3-gpu: the ARCTC block reads and writes VA on the host (PATCH.md section 13).
+                IF ( ARCTC .AND. KOKKOS_XYP3 ) CALL W3KOKKOS_VA_HOST_WRITE
+#endif
 #ifdef W3_SMC
                 !Li    Find source boundary spectra and assign to SPCBAC
                 IF( ARCTC ) THEN
@@ -2227,6 +2236,9 @@ CONTAINS
               !
             END IF
 
+#if defined(W3_DEBUGCOH) && defined(W3_KOKKOS)
+            CALL W3KOKKOS_VA_HOST_READ
+#endif
 #ifdef W3_DEBUGCOH
             CALL ALL_VA_INTEGRAL_PRINT(IMOD, "After spatial advection", 1)
 #endif
@@ -2238,8 +2250,9 @@ CONTAINS
             !
             IF ( FLCTH .OR. FLCK ) THEN
 #ifdef W3_KOKKOS
-              ! ww3-gpu: VA current on the host before W3KTP3 (part 2), outside the region (PATCH.md 11).
-              CALL W3KOKKOS_VA_HOST_WRITE
+              ! ww3-gpu: VA current on the host before the Fortran W3KTP3 (part 2), outside the
+              ! region; W3KOKKOS_KTP3 works on the resident VA itself (PATCH.md 11, 13).
+              IF ( .NOT. KOKKOS_KTP3 ) CALL W3KOKKOS_VA_HOST_WRITE
               ! ww3-gpu: part 2 of W3KTP3 on Kokkos under WW_KOKKOS_KTP3=1.
               IF ( KOKKOS_KTP3 ) THEN
                 CALL W3KOKKOS_KTP3 ( FACTH, FACK, NTLOC-ITLOCH )
@@ -2331,6 +2344,9 @@ CONTAINS
               END IF
 #endif
             END IF
+#if defined(W3_DEBUGCOH) && defined(W3_KOKKOS)
+            CALL W3KOKKOS_VA_HOST_READ
+#endif
 #ifdef W3_DEBUGCOH
             CALL ALL_VA_INTEGRAL_PRINT(IMOD, "After intraspectral adv.", 1)
 #endif

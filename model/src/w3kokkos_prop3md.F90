@@ -9,7 +9,10 @@
 !> W3WAVE section 3.6.3 (W3GATH, W3XYP3, W3SCAT per component, W3_SHRD), and
 !> W3KOKKOS_KTP3 one intra-spectral part, the DO ITLOC loop of section 3.6.2 or
 !> 3.6.4 with its DO JSEA loop. Each part is opt-in: WW_KOKKOS_XYP3=1 and
-!> WW_KOKKOS_KTP3=1; WW_KOKKOS_ALL does not turn them on.
+!> WW_KOKKOS_KTP3=1; WW_KOKKOS_ALL does not turn them on. Both work on the
+!> resident VA (WFIP-0005 unit 3b, PATCH.md section 13): VA is passed only to
+!> bind it, the kernels read and write its device copy, and W3WAVE makes no
+!> host sync call around them.
 !>
 !> SPDX-License-Identifier: LGPL-3.0-or-later
 !/ ------------------------------------------------------------------- /
@@ -46,6 +49,25 @@ MODULE W3KOKKOS_PROP3MD
            MAPSTA(*), ISBPI(*), ON(*)
       REAL(C_FLOAT), INTENT(INOUT) :: VA(*)
     END FUNCTION WW_XYP3_BATCH
+    INTEGER(C_INT) FUNCTION WW_XYP3_BATCH_VA ( IGRID, RPAR, NRPAR, IPAR,&
+         NIPAR, IMAPS, NIMAPS, TSCAL, NTSCAL, DTG, MAPSF, CLATS, SIG,   &
+         ECOS, ESIN, DPDX, DPDY, DQDX, DQDY, GSQRT, ATRNX, ATRNY, MAPX2, &
+         MAPY2, MAPAXY, MAPCXY, MAPTRN, MAPSTA, CG, CX, CY, FLBPI, NBI,  &
+         ISBPI, BBPI0, BBPIN, ON, VA, NSPEC, NSEALM )                    &
+         BIND(C, NAME='ww_xyp3_batch_va')
+      IMPORT :: C_INT, C_FLOAT
+      INTEGER(C_INT), VALUE        :: IGRID, NRPAR, NIPAR, NIMAPS,      &
+           NTSCAL, FLBPI, NBI, NSPEC, NSEALM
+      REAL(C_FLOAT), VALUE         :: DTG
+      REAL(C_FLOAT), INTENT(IN)    :: RPAR(*), TSCAL(*), CLATS(*),      &
+           SIG(*), ECOS(*), ESIN(*), DPDX(*), DPDY(*), DQDX(*), DQDY(*), &
+           GSQRT(*), ATRNX(*), ATRNY(*), CG(*), CX(*), CY(*), BBPI0(*),  &
+           BBPIN(*)
+      INTEGER(C_INT), INTENT(IN)   :: IPAR(*), IMAPS(*), MAPSF(*),      &
+           MAPX2(*), MAPY2(*), MAPAXY(*), MAPCXY(*), MAPTRN(*),          &
+           MAPSTA(*), ISBPI(*), ON(*)
+      REAL(C_FLOAT), INTENT(INOUT) :: VA(*)
+    END FUNCTION WW_XYP3_BATCH_VA
     INTEGER(C_INT) FUNCTION WW_KTP3_BATCH ( RPAR, NRPAR, IPAR, NIPAR,   &
          SIG, DSIP, ECOS, ESIN, EC2, ESC, ES2, MAPWN, MAPTH2, MAPWN2,    &
          ITSTEP, NTIMES, FACTH, FACK, NSEA, CG, WN, NPTS, JSEA, ISEA,    &
@@ -62,6 +84,22 @@ MODULE W3KOKKOS_PROP3MD
            MAPWN2(*), JSEA(*), ISEA(*)
       REAL(C_FLOAT), INTENT(INOUT) :: VA(*), CFLTHMAX(*), CFLKMAX(*)
     END FUNCTION WW_KTP3_BATCH
+    INTEGER(C_INT) FUNCTION WW_KTP3_BATCH_VA ( IGRID, RPAR, NRPAR, IPAR,&
+         NIPAR, SIG, DSIP, ECOS, ESIN, EC2, ESC, ES2, MAPWN, MAPTH2,     &
+         MAPWN2, ITSTEP, NTIMES, FACTH, FACK, NSEA, CG, WN, NPTS, JSEA,  &
+         ISEA, PSCAL, VA, NSPEC, NSEALM, CFLTHMAX, CFLKMAX )             &
+         BIND(C, NAME='ww_ktp3_batch_va')
+      IMPORT :: C_INT, C_FLOAT
+      INTEGER(C_INT), VALUE        :: IGRID, NRPAR, NIPAR, ITSTEP,      &
+           NTIMES, NSEA, NPTS, NSPEC, NSEALM
+      REAL(C_FLOAT), VALUE         :: FACTH, FACK
+      REAL(C_FLOAT), INTENT(IN)    :: RPAR(*), SIG(*), DSIP(*),         &
+           ECOS(*), ESIN(*), EC2(*), ESC(*), ES2(*), CG(*), WN(*),       &
+           PSCAL(*)
+      INTEGER(C_INT), INTENT(IN)   :: IPAR(*), MAPWN(*), MAPTH2(*),     &
+           MAPWN2(*), JSEA(*), ISEA(*)
+      REAL(C_FLOAT), INTENT(INOUT) :: VA(*), CFLTHMAX(*), CFLKMAX(*)
+    END FUNCTION WW_KTP3_BATCH_VA
   END INTERFACE
   !
 CONTAINS
@@ -108,7 +146,7 @@ CONTAINS
     USE W3GDATMD, ONLY: NX, NY, NSEA, NK, NTH, NSPEC, MAPSF, DTCFL,     &
          CLATS, ICLOSE, FLCX, FLCY, DTH, XFR, ECOS, ESIN, SIG, WDCG,     &
          WDTH, FLAGLL, DPDX, DPDY, DQDX, DQDY, GSQRT, GTYPE, RLGTYPE,    &
-         CLGTYPE, ICLOSE_TRPL
+         CLGTYPE, ICLOSE_TRPL, IGRID
     USE W3WDATMD, ONLY: TIME, VA
     USE W3ADATMD, ONLY: NMX0, NMX1, NMX2, NMY0, NMY1, NMY2, NACT,       &
          NCENT, MAPX2, MAPY2, MAPAXY, MAPCXY, MAPTRN, CG, CX, CY,        &
@@ -159,19 +197,19 @@ CONTAINS
     IF ( FLBPI ) THEN
       TSCAL(2) = DSEC21 ( TBPI0, TIME )
       TSCAL(3) = DSEC21 ( TBPI0, TBPIN )
-      IERR = WW_XYP3_BATCH ( RPAR, 5_C_INT, IPAR, 11_C_INT, IMAPS,      &
-           8_C_INT, TSCAL, 3_C_INT, DTG, MAPSF, CLATS, SIG, ECOS, ESIN,  &
-           DPDX, DPDY, DQDX, DQDY, GSQRT, ATRNX, ATRNY, MAPX2, MAPY2,    &
-           MAPAXY, MAPCXY, MTRN, MAPSTA, CG, CX, CY, 1_C_INT, NBI,       &
-           ISBPI, BBPI0, BBPIN, ON, SIZE(VA,2), VA )
+      IERR = WW_XYP3_BATCH_VA ( IGRID, RPAR, 5_C_INT, IPAR, 11_C_INT,   &
+           IMAPS, 8_C_INT, TSCAL, 3_C_INT, DTG, MAPSF, CLATS, SIG, ECOS, &
+           ESIN, DPDX, DPDY, DQDX, DQDY, GSQRT, ATRNX, ATRNY, MAPX2,     &
+           MAPY2, MAPAXY, MAPCXY, MTRN, MAPSTA, CG, CX, CY, 1_C_INT, NBI,&
+           ISBPI, BBPI0, BBPIN, ON, VA, SIZE(VA,1), UBOUND(VA,2) )
     ELSE
       IDUM = 0
       RDUM = 0.
-      IERR = WW_XYP3_BATCH ( RPAR, 5_C_INT, IPAR, 11_C_INT, IMAPS,      &
-           8_C_INT, TSCAL, 3_C_INT, DTG, MAPSF, CLATS, SIG, ECOS, ESIN,  &
-           DPDX, DPDY, DQDX, DQDY, GSQRT, ATRNX, ATRNY, MAPX2, MAPY2,    &
-           MAPAXY, MAPCXY, MTRN, MAPSTA, CG, CX, CY, 0_C_INT, 0_C_INT,   &
-           IDUM, RDUM, RDUM, ON, SIZE(VA,2), VA )
+      IERR = WW_XYP3_BATCH_VA ( IGRID, RPAR, 5_C_INT, IPAR, 11_C_INT,   &
+           IMAPS, 8_C_INT, TSCAL, 3_C_INT, DTG, MAPSF, CLATS, SIG, ECOS, &
+           ESIN, DPDX, DPDY, DQDX, DQDY, GSQRT, ATRNX, ATRNY, MAPX2,     &
+           MAPY2, MAPAXY, MAPCXY, MTRN, MAPSTA, CG, CX, CY, 0_C_INT,     &
+           0_C_INT, IDUM, RDUM, RDUM, ON, VA, SIZE(VA,1), UBOUND(VA,2) )
     END IF
     CALL PROP3_CHECK ( 'W3XYP3', IERR )
 #else
@@ -187,7 +225,7 @@ CONTAINS
 #if defined(W3_PR3) && defined(W3_UQ)
     USE W3GDATMD, ONLY: NK, NK2, NTH, NSPEC, NSEA, NSEAL, SIG, DSIP,    &
          ECOS, ESIN, EC2, ESC, ES2, FACHFA, MAPWN, FLCTH, FLCK, CTMAX,   &
-         DMIN, MAPSF, MAPSTA, CTHG0S, GTYPE, RLGTYPE, CLGTYPE
+         DMIN, MAPSF, MAPSTA, CTHG0S, GTYPE, RLGTYPE, CLGTYPE, IGRID
     USE W3WDATMD, ONLY: VA
     USE W3ADATMD, ONLY: MAPTH2, MAPWN2, ITSTEP, CG, WN, DW, CX, CY,     &
          DDDX, DDDY, DCXDX, DCXDY, DCYDX, DCYDY, CFLTHMAX, CFLKMAX
@@ -242,10 +280,10 @@ CONTAINS
     RPAR = (/ DMIN, CTMAX, FACHFA /)
     IPAR = (/ NK, NTH, NSPEC, NK2, MERGE(1,0,FLCTH), MERGE(1,0,FLCK),    &
          MERGE(1,0,FLCUR) /)
-    IERR = WW_KTP3_BATCH ( RPAR, 3_C_INT, IPAR, 7_C_INT, SIG, DSIP,     &
-         ECOS, ESIN, EC2, ESC, ES2, MAPWN, MAPTH2, MAPWN2, ITSTEP,       &
-         NTIMES, FACTH, FACK, NSEA, CG, WN, NP, PJSEA, PISEA, PS,       &
-         SIZE(VA,2), VA, CFLTHMAX, CFLKMAX )
+    IERR = WW_KTP3_BATCH_VA ( IGRID, RPAR, 3_C_INT, IPAR, 7_C_INT, SIG, &
+         DSIP, ECOS, ESIN, EC2, ESC, ES2, MAPWN, MAPTH2, MAPWN2, ITSTEP, &
+         NTIMES, FACTH, FACK, NSEA, CG, WN, NP, PJSEA, PISEA, PS, VA,   &
+         SIZE(VA,1), UBOUND(VA,2), CFLTHMAX, CFLKMAX )
     CALL PROP3_CHECK ( 'W3KTP3', IERR )
 #else
     CALL PROP3_CHECK ( 'W3KTP3', 5_C_INT )
