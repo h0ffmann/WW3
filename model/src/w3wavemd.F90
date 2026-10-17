@@ -449,6 +449,9 @@ CONTAINS
 #if defined(W3_KOKKOS) && defined(W3_ST4) && defined(W3_NL1)
     USE W3KOKKOSMD, ONLY: W3KOKKOS_SRCE_ON, W3KOKKOS_SRCE
 #endif
+#if defined(W3_KOKKOS) && defined(W3_ST4) && defined(W3_NL1) && !defined(W3_PDLIB)
+    USE W3KOKKOSMD, ONLY: W3KOKKOS_SRCE_BATCH
+#endif
 #ifdef W3_KOKKOS
     USE W3KOKKOSMD, ONLY: KOKKOS_DZXY, KOKKOS_UWND, KOKKOS_MAP3,        &
          KOKKOS_UTRN, KOKKOS_MAPT, KOKKOS_GATH, KOKKOS_SCAT,            &
@@ -2319,6 +2322,13 @@ CONTAINS
 #endif
 #endif
               !
+#if defined(W3_KOKKOS) && defined(W3_ST4) && defined(W3_NL1) && !defined(W3_PDLIB)
+              ! ww3-gpu: every sea point of the step in one Kokkos launch
+              ! (WW_KOKKOS_SRCE=1); the loop below is the Fortran's, unchanged.
+              IF ( W3KOKKOS_SRCE_ON(IT) ) THEN
+                CALL W3KOKKOS_SRCE_BATCH ( IT, DTG, TAUWX, TAUWY )
+              ELSE
+#endif
 #ifdef W3_OMPG
               !$OMP PARALLEL PRIVATE (JSEA,ISEA,IX,IY,DELA,DELX,DELY,        &
               !$OMP&                  REFLEC,REFLED,D50,PSIC,TMP1,TMP2,TMP3,TMP4)
@@ -2455,6 +2465,9 @@ CONTAINS
 #ifdef W3_OMPG
               !$OMP END DO
               !$OMP END PARALLEL
+#endif
+#if defined(W3_KOKKOS) && defined(W3_ST4) && defined(W3_NL1) && !defined(W3_PDLIB)
+              END IF
 #endif
               !
 #ifdef W3_PDLIB

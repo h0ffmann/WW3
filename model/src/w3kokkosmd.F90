@@ -239,6 +239,21 @@ MODULE W3KOKKOSMD
        IS_IQTPE = 3, IS_IICEDISP = 4, IS_IC_NUMERICS = 5, IS_FDONLY = 6, &
        IS_LAB_SWITCH = 7, NISPAR = 8
   !/
+  !/ WW_SRCE_BATCH packet rows, 0-based as WwSrceBatchIn and WwSrceBatchScal
+  !/ in ww_kokkos_c.hpp: PIN(SRCEB_I_X+1, IP), PSC(SRCEB_S_X+1, IP).
+  !/
+  INTEGER, PARAMETER :: SRCEB_I_D_INP = 0, SRCEB_I_U10ABS = 1,         &
+       SRCEB_I_U10DIR = 2, SRCEB_I_AS = 3, SRCEB_I_ICE = 4,             &
+       SRCEB_I_DAIR = 5, SRCEB_I_COEF = 6, SRCEB_NPIN = 7
+  INTEGER, PARAMETER :: SRCEB_S_USTAR = 0, SRCEB_S_USTDIR = 1,         &
+       SRCEB_S_TAUWX = 2, SRCEB_S_TAUWY = 3, SRCEB_S_DTDYN = 4,         &
+       SRCEB_S_FCUT = 5, SRCEB_S_TAUOX = 6, SRCEB_S_TAUOY = 7,          &
+       SRCEB_S_TAUWIX = 8, SRCEB_S_TAUWIY = 9, SRCEB_S_TAUWNX = 10,     &
+       SRCEB_S_TAUWNY = 11, SRCEB_S_PHIAW = 12, SRCEB_S_CHARN = 13,     &
+       SRCEB_S_TWS = 14, SRCEB_S_PHIOC = 15, SRCEB_S_PHIBBL = 16,       &
+       SRCEB_S_PHICE = 17, SRCEB_S_TAUOCX = 18, SRCEB_S_TAUOCY = 19,    &
+       SRCEB_S_WNMEAN = 20, SRCEB_NPSC = 21
+  !/
   !/ ST4 packet indices, 0-based as in ww_kokkos/st4_params.hpp and
   !/ st4_arrays.hpp: Fortran RPAR(R_X+1). Change them only with those headers.
   !/
@@ -442,6 +457,23 @@ MODULE W3KOKKOSMD
                                           TAUOCX, TAUOCY, WNMEAN
        INTEGER(C_INT), INTENT(INOUT)   :: SHAVE
      END SUBROUTINE WW_SRCE
+     !
+     !> W3SRCE(srce_direct, ...) for NPTS points packed column by column
+     !> (W3KOKKOS_SRCE_BATCH): SPEC(NSPEC,NPTS), WN1, CG1 (NK,NPTS),
+     !> PIN(SRCEB_NPIN,NPTS), PSC(SRCEB_NPSC,NPTS), WHITECAP(4,NPTS),
+     !> TAUBBL, TAUICE (2,NPTS), SHAVE(NPTS). Status in WW_SRCE_LAST_ERROR().
+     SUBROUTINE WW_SRCE_BATCH ( IGRID, IT, INFLAGS24, FLOGRD57,          &
+          FLOGRD58, DTG, NPTS, SPEC, WN1, CG1, PIN, PSC, WHITECAP,       &
+          TAUBBL, TAUICE, SHAVE ) BIND(C, NAME='ww_srce_batch')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE           :: IGRID, IT, INFLAGS24,          &
+                                          FLOGRD57, FLOGRD58, NPTS
+       REAL(C_FLOAT),  VALUE           :: DTG
+       REAL(C_FLOAT),  INTENT(IN)      :: WN1(*), CG1(*), PIN(*)
+       REAL(C_FLOAT),  INTENT(INOUT)   :: SPEC(*), PSC(*), WHITECAP(*),  &
+                                          TAUBBL(*), TAUICE(*)
+       INTEGER(C_INT), INTENT(OUT)     :: SHAVE(*)
+     END SUBROUTINE WW_SRCE_BATCH
      !
      INTEGER(C_INT) FUNCTION WW_SRCE_ENABLED ( )                         &
           BIND(C, NAME='ww_srce_enabled')
@@ -1800,6 +1832,146 @@ CONTAINS
     CALL SRCE_CHECK ( 'W3SRCE', IERR )
     SHAVEIO = ( SH /= 0_C_INT )
   END SUBROUTINE W3KOKKOS_SRCE
+  !/ ------------------------------------------------------------------- /
+  !> W3WAVE's source-term loop (w3wavemd.F90, section 3.7) for the whole
+  !> grid in one call of the shim, for builds without PDLIB: every sea point
+  !> with MAPSTA(IY,IX) == 1 and FLAGST(ISEA) is packed with the arguments
+  !> W3KOKKOS_SRCE takes for it, the shim runs them all, and the results are
+  !> unpacked to the same arrays; every other point gets the loop's UNDEF.
+  !> Call only when W3KOKKOS_SRCE_ON(IT): that test reads no point, so it
+  !> holds for every point of the step. The points are independent (each
+  !> reads and writes only its own JSEA, ISEA), as the loop's
+  !> !$OMP DO SCHEDULE(DYNAMIC,1) already assumes. What the per-point call
+  !> also writes, VSIO, VDIO and SHAVEIO into W3WAVE's VSioDummy,
+  !> VDioDummy and SHAVETOTioDummy, is read only under PDLIB, where this
+  !> routine is not called. The pack buffers are kept between calls (SAVE)
+  !> and grown when NSEAL grows. TAUWX, TAUWY are W3WAVE's own (NSEAL)
+  !> arrays, not module data, so they come as arguments.
+  SUBROUTINE W3KOKKOS_SRCE_BATCH ( IT, DTG, TAUWX, TAUWY )
+    USE CONSTANTS, ONLY: UNDEF
+    USE W3GDATMD, ONLY: NK, NSPEC, NSEAL, IGRID, MAPSF, MAPSTA, FLAGST
+    USE W3WDATMD, ONLY: VA, UST, USTDIR, ICE, RHOAIR, ASF
+    USE W3ADATMD, ONLY: WN, CG, DW, U10, U10D, AS, DTDYN, FCUT,        &
+         TAUOX, TAUOY, TAUWIX, TAUWIY, TAUWNX, TAUWNY, PHIAW,    &
+         CHARN, TWS, PHIOC, WHITECAP, PHIBBL, TAUBBL, TAUICE, PHICE,    &
+         TAUOCX, TAUOCY, WNMEAN
+    USE W3IDATMD, ONLY: INFLAGS2
+    USE W3ODATMD, ONLY: FLOGRD
+    USE W3PARALL, ONLY: INIT_GET_ISEA
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: IT
+    REAL, INTENT(IN)        :: DTG
+    REAL, INTENT(INOUT)     :: TAUWX(NSEAL), TAUWY(NSEAL)
+    REAL(C_FLOAT), ALLOCATABLE, SAVE  :: BSPEC(:,:), BWN1(:,:),        &
+         BCG1(:,:), BPIN(:,:), BPSC(:,:), BWC(:,:), BTB(:,:), BTI(:,:)
+    INTEGER(C_INT), ALLOCATABLE, SAVE :: BSH(:)
+    INTEGER, ALLOCATABLE, SAVE        :: BJSEA(:)
+    INTEGER                 :: JSEA, ISEA, IX, IY, IP, NPTS
+    INTEGER(C_INT)          :: IERR
+    !
+    IF ( ALLOCATED(BJSEA) ) THEN
+      IF ( SIZE(BJSEA) < NSEAL .OR. SIZE(BSPEC,1) /= NSPEC .OR.          &
+           SIZE(BWN1,1) /= NK ) THEN
+        DEALLOCATE ( BSPEC, BWN1, BCG1, BPIN, BPSC, BWC, BTB, BTI, BSH, &
+             BJSEA )
+      END IF
+    END IF
+    IF ( .NOT. ALLOCATED(BJSEA) ) THEN
+      ALLOCATE ( BSPEC(NSPEC,NSEAL), BWN1(NK,NSEAL), BCG1(NK,NSEAL),    &
+           BPIN(SRCEB_NPIN,NSEAL), BPSC(SRCEB_NPSC,NSEAL),              &
+           BWC(4,NSEAL), BTB(2,NSEAL), BTI(2,NSEAL), BSH(NSEAL),        &
+           BJSEA(NSEAL) )
+    END IF
+    !
+    NPTS = 0
+    DO JSEA = 1, NSEAL
+      CALL INIT_GET_ISEA ( ISEA, JSEA )
+      IX = MAPSF(ISEA,1)
+      IY = MAPSF(ISEA,2)
+      IF ( MAPSTA(IY,IX) .EQ. 1 .AND. FLAGST(ISEA) ) THEN
+        NPTS = NPTS + 1
+        IP = NPTS
+        BJSEA(IP) = JSEA
+        BSPEC(:,IP) = VA(:,JSEA)
+        BWN1(:,IP) = WN(1:NK,ISEA)
+        BCG1(:,IP) = CG(1:NK,ISEA)
+        BPIN(SRCEB_I_D_INP+1,IP)  = DW(ISEA)
+        BPIN(SRCEB_I_U10ABS+1,IP) = U10(ISEA)
+        BPIN(SRCEB_I_U10DIR+1,IP) = U10D(ISEA)
+        BPIN(SRCEB_I_AS+1,IP)     = AS(ISEA)
+        BPIN(SRCEB_I_ICE+1,IP)    = ICE(ISEA)
+        BPIN(SRCEB_I_DAIR+1,IP)   = RHOAIR(ISEA)
+        BPIN(SRCEB_I_COEF+1,IP)   = ASF(ISEA)
+        BPSC(SRCEB_S_USTAR+1,IP)  = UST(ISEA)
+        BPSC(SRCEB_S_USTDIR+1,IP) = USTDIR(ISEA)
+        BPSC(SRCEB_S_TAUWX+1,IP)  = TAUWX(JSEA)
+        BPSC(SRCEB_S_TAUWY+1,IP)  = TAUWY(JSEA)
+        BPSC(SRCEB_S_DTDYN+1,IP)  = DTDYN(JSEA)
+        BPSC(SRCEB_S_FCUT+1,IP)   = FCUT(JSEA)
+        BPSC(SRCEB_S_TAUOX+1,IP)  = TAUOX(JSEA)
+        BPSC(SRCEB_S_TAUOY+1,IP)  = TAUOY(JSEA)
+        BPSC(SRCEB_S_TAUWIX+1,IP) = TAUWIX(JSEA)
+        BPSC(SRCEB_S_TAUWIY+1,IP) = TAUWIY(JSEA)
+        BPSC(SRCEB_S_TAUWNX+1,IP) = TAUWNX(JSEA)
+        BPSC(SRCEB_S_TAUWNY+1,IP) = TAUWNY(JSEA)
+        BPSC(SRCEB_S_PHIAW+1,IP)  = PHIAW(JSEA)
+        BPSC(SRCEB_S_CHARN+1,IP)  = CHARN(JSEA)
+        BPSC(SRCEB_S_TWS+1,IP)    = TWS(JSEA)
+        BPSC(SRCEB_S_PHIOC+1,IP)  = PHIOC(JSEA)
+        BPSC(SRCEB_S_PHIBBL+1,IP) = PHIBBL(JSEA)
+        BPSC(SRCEB_S_PHICE+1,IP)  = PHICE(JSEA)
+        BPSC(SRCEB_S_TAUOCX+1,IP) = TAUOCX(JSEA)
+        BPSC(SRCEB_S_TAUOCY+1,IP) = TAUOCY(JSEA)
+        BPSC(SRCEB_S_WNMEAN+1,IP) = WNMEAN(JSEA)
+        BWC(:,IP) = WHITECAP(JSEA,1:4)
+        BTB(:,IP) = TAUBBL(JSEA,1:2)
+        BTI(:,IP) = TAUICE(JSEA,1:2)
+        BSH(IP) = 0
+      ELSE
+        UST   (ISEA) = UNDEF
+        USTDIR(ISEA) = UNDEF
+        DTDYN (JSEA) = UNDEF
+        FCUT  (JSEA) = UNDEF
+      END IF
+    END DO
+    !
+    CALL WW_SRCE_BATCH ( IGRID, IT, MERGE(1_C_INT, 0_C_INT, INFLAGS2(4)), &
+         MERGE(1_C_INT, 0_C_INT, FLOGRD(5,7)),                          &
+         MERGE(1_C_INT, 0_C_INT, FLOGRD(5,8)), DTG, NPTS, BSPEC, BWN1,  &
+         BCG1, BPIN, BPSC, BWC, BTB, BTI, BSH )
+    IERR = WW_SRCE_LAST_ERROR()
+    CALL SRCE_CHECK ( 'W3SRCE (batched)', IERR )
+    !
+    DO IP = 1, NPTS
+      JSEA = BJSEA(IP)
+      CALL INIT_GET_ISEA ( ISEA, JSEA )
+      VA(:,JSEA)     = BSPEC(:,IP)
+      UST(ISEA)      = BPSC(SRCEB_S_USTAR+1,IP)
+      USTDIR(ISEA)   = BPSC(SRCEB_S_USTDIR+1,IP)
+      TAUWX(JSEA)    = BPSC(SRCEB_S_TAUWX+1,IP)
+      TAUWY(JSEA)    = BPSC(SRCEB_S_TAUWY+1,IP)
+      DTDYN(JSEA)    = BPSC(SRCEB_S_DTDYN+1,IP)
+      FCUT(JSEA)     = BPSC(SRCEB_S_FCUT+1,IP)
+      TAUOX(JSEA)    = BPSC(SRCEB_S_TAUOX+1,IP)
+      TAUOY(JSEA)    = BPSC(SRCEB_S_TAUOY+1,IP)
+      TAUWIX(JSEA)   = BPSC(SRCEB_S_TAUWIX+1,IP)
+      TAUWIY(JSEA)   = BPSC(SRCEB_S_TAUWIY+1,IP)
+      TAUWNX(JSEA)   = BPSC(SRCEB_S_TAUWNX+1,IP)
+      TAUWNY(JSEA)   = BPSC(SRCEB_S_TAUWNY+1,IP)
+      PHIAW(JSEA)    = BPSC(SRCEB_S_PHIAW+1,IP)
+      CHARN(JSEA)    = BPSC(SRCEB_S_CHARN+1,IP)
+      TWS(JSEA)      = BPSC(SRCEB_S_TWS+1,IP)
+      PHIOC(JSEA)    = BPSC(SRCEB_S_PHIOC+1,IP)
+      PHIBBL(JSEA)   = BPSC(SRCEB_S_PHIBBL+1,IP)
+      PHICE(JSEA)    = BPSC(SRCEB_S_PHICE+1,IP)
+      TAUOCX(JSEA)   = BPSC(SRCEB_S_TAUOCX+1,IP)
+      TAUOCY(JSEA)   = BPSC(SRCEB_S_TAUOCY+1,IP)
+      WNMEAN(JSEA)   = BPSC(SRCEB_S_WNMEAN+1,IP)
+      WHITECAP(JSEA,1:4) = BWC(:,IP)
+      TAUBBL(JSEA,1:2)   = BTB(:,IP)
+      TAUICE(JSEA,1:2)   = BTI(:,IP)
+    END DO
+  END SUBROUTINE W3KOKKOS_SRCE_BATCH
 #endif
 #ifdef W3_ST1
   !/ ------------------------------------------------------------------- /
