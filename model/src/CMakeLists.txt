@@ -33,8 +33,8 @@ if(WW_KOKKOS)
   if("ST4" IN_LIST switches AND "FLX5" IN_LIST switches)
     message(FATAL_ERROR "The Kokkos ST4 path does not support FLX5: drop KOKKOS or FLX5")
   endif()
-  # 0.2 is the first ABI with the ST4 entry points (ww_st4_*, ww_sds4/sin4/spr4).
-  find_package(ww_kokkos 0.2 REQUIRED)
+  # 0.3 is the first ABI with ww_kokkos_flag and the W3WAVE support entry points (ww_wave_*).
+  find_package(ww_kokkos 0.3 REQUIRED)
   target_link_libraries(ww3_lib PUBLIC ww_kokkos::ww_kokkos)
 elseif("KOKKOS" IN_LIST switches)
   message(FATAL_ERROR "The KOKKOS switch needs -DWW_KOKKOS=ON and ww_kokkos_DIR")

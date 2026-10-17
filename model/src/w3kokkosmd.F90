@@ -32,6 +32,20 @@
 !>
 !> SPDX-License-Identifier: LGPL-3.0-or-later
 !>
+! The switch sets each W3WAVE support translation covers (ww3-gpu,
+! docs/W3WAVE_SUPPORT_KOKKOS_PLAN_202610.md): outside them the flag stays off.
+#ifdef W3_SHRD
+#define W3KOKKOS_HAS_GATH
+#endif
+#if defined(W3_WNT1) && !defined(W3_WNT0) && !defined(W3_WNT2) && !defined(W3_OASACM) && !defined(W3_MGW) && !defined(W3_SMC) && !defined(W3_WCOR) && !defined(W3_STAB2)
+#define W3KOKKOS_HAS_UWND
+#endif
+#ifdef W3_IC0
+#define W3KOKKOS_HAS_UTRN
+#endif
+#ifdef W3_PR3
+#define W3KOKKOS_HAS_PR3
+#endif
 MODULE W3KOKKOSMD
   !/
   !/                  +-----------------------------------+
@@ -96,7 +110,7 @@ MODULE W3KOKKOSMD
   !          point pays that cost once per sea point. Phase 2 removes it.
   !
   !/ ------------------------------------------------------------------- /
-  USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_INT, C_FLOAT
+  USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_INT, C_FLOAT, C_CHAR, C_NULL_CHAR
   !
   IMPLICIT NONE
   !
@@ -108,14 +122,65 @@ MODULE W3KOKKOSMD
   !> Use the Kokkos DIA in place of W3SNL1. Set by W3KOKKOS_SETUP from the
   !> environment variable WW_KOKKOS_SNL1 as read by WW_KOKKOS_INIT; .FALSE. until
   !> then, so a model that never calls the set-up keeps its Fortran source terms.
+  !> Every flag is resolved by ww_kokkos_flag (part_flags.cpp): WW_KOKKOS_<PART>
+  !> when set, else WW_KOKKOS_ALL=1 for all, else off. The "parity:" note on each
+  !> is a judgement (⚠) unless it names a measurement; PATCH.md has the reasoning.
+  !> parity: measured on CPU (v, bit-identical, smoke, full, 100-entry matrix,
+  !> 2026-10-15); GPU ⚠ never run.
   LOGICAL :: KOKKOS_SNL1 = .FALSE.
   !> Kokkos W3SDS4, W3SIN4, W3SPR4: WW_KOKKOS_SDS4/SIN4/SPR4=1, read likewise.
+  !> parity: measured on CPU (v, smoke 2026-10-16, with ST4_TABLES, byte-identical,
+  !> 2339/6838/6660 spectra); GPU ⚠ libdevice expf/logf/tanhf/powf are not glibc's.
   LOGICAL :: KOKKOS_SDS4 = .FALSE., KOKKOS_SIN4 = .FALSE.,             &
              KOKKOS_SPR4 = .FALSE.
   !> Kokkos W3SRCE (with every source term it calls): WW_KOKKOS_SRCE=1.
+  !> parity: measured on CPU (v, WW_KOKKOS_ALL=1 2026-10-16, byte-identical, smoke 2161
+  !> and full 230100 spectra); GPU ⚠ logf/tanhf/sincosf from libdevice.
   LOGICAL :: KOKKOS_SRCE = .FALSE.
+  !> W3WAVE's support routines, WW_KOKKOS_<NAME>=1 (W3KOKKOS_SETUP); each stays
+  !> off on a switch file its translation does not cover.
+  !> GATH, SCAT: measured on CPU (v, full 2026-10-16, 13824 calls each, byte-identical);
+  !>   pure copies, no arithmetic, so any backend; GPU ⚠ never run.
+  !> UWND: measured on CPU (v, smoke and full 2026-10-16, byte-identical, 2161 and 25
+  !>   calls); GPU ⚠
+  !>   atan2f/fmodf/sincosf from libdevice.
+  !> UTRN: likely ⚠ judgement (expf, minss/maxss order kept); smoke and full ran
+  !>   only TRFLAG = 0 (1 call each, byte-identical); GPU ⚠ expf.
+  !> DZXY: measured on CPU (v, full 2026-10-16, 1 call, byte-identical); no libm call;
+  !>   GPU ⚠ never run (needs --fmad=false; NaN payload order, port report).
+  !> MAP3, MAPT: measured on CPU (v, full 2026-10-16, 1 call each, 120x80, byte-identical);
+  !>   integers and minss only; GPU ⚠ never run.
+  !> DISTAB: measured on CPU (v, smoke 2026-10-16, 0 of 246 table values differ);
+  !>   GPU ⚠ tanhf/coshf/sinhf from libdevice.
+  LOGICAL :: KOKKOS_GATH = .FALSE., KOKKOS_SCAT = .FALSE.,             &
+             KOKKOS_UWND = .FALSE., KOKKOS_UTRN = .FALSE.,             &
+             KOKKOS_DZXY = .FALSE., KOKKOS_MAP3 = .FALSE.,             &
+             KOKKOS_MAPT = .FALSE., KOKKOS_DISTAB = .FALSE.
+#ifdef W3_KOKKOS
+#ifdef W3KOKKOS_HAS_GATH
+  LOGICAL, PARAMETER, PRIVATE :: HAS_GATH = .TRUE.
+#else
+  LOGICAL, PARAMETER, PRIVATE :: HAS_GATH = .FALSE.
+#endif
+#ifdef W3KOKKOS_HAS_UWND
+  LOGICAL, PARAMETER, PRIVATE :: HAS_UWND = .TRUE.
+#else
+  LOGICAL, PARAMETER, PRIVATE :: HAS_UWND = .FALSE.
+#endif
+#ifdef W3KOKKOS_HAS_UTRN
+  LOGICAL, PARAMETER, PRIVATE :: HAS_UTRN = .TRUE.
+#else
+  LOGICAL, PARAMETER, PRIVATE :: HAS_UTRN = .FALSE.
+#endif
+#ifdef W3KOKKOS_HAS_PR3
+  LOGICAL, PARAMETER, PRIVATE :: HAS_PR3 = .TRUE.
+#else
+  LOGICAL, PARAMETER, PRIVATE :: HAS_PR3 = .FALSE.
+#endif
+#endif
 #ifdef W3_ST0
   !> Kokkos W3SPR0: WW_KOKKOS_SPR0=1, read by W3KOKKOS_SETUP.
+  !> parity: likely on CPU ⚠ judgement (sqrtf only, sums in Fortran order); not run.
   LOGICAL :: KOKKOS_SPR0 = .FALSE.
   !/
   !/ ST0 packet indices and array ids, 0-based as WwSt0Rpar, WwSt0Ipar and
@@ -128,12 +193,15 @@ MODULE W3KOKKOSMD
 #if defined(W3_FLX1) || defined(W3_FLX2) || defined(W3_FLX3) || defined(W3_FLX4) || defined(W3_FLX5)
   !> Kokkos W3FLX1..W3FLX5: WW_KOKKOS_FLX1..FLX5=1. Only the flag of the
   !> compiled W3_FLXn has an effect.
+  !> parity: ⚠ judgement, CPU likely (expf/logf/powf/tanhf glibc, libmvec loops
+  !> reproduced, __powisf2 kept); GPU unlikely (libdevice); not run.
   LOGICAL :: KOKKOS_FLX1 = .FALSE., KOKKOS_FLX2 = .FALSE.,             &
              KOKKOS_FLX3 = .FALSE., KOKKOS_FLX4 = .FALSE.,             &
              KOKKOS_FLX5 = .FALSE.
 #endif
 #ifdef W3_ST6
   !> Kokkos W3SWL6: WW_KOKKOS_SWL6=1, read by W3KOKKOS_SETUP.
+  !> parity: likely on CPU ⚠ judgement (sqrtf, libmvec loop reproduced); not run.
   LOGICAL :: KOKKOS_SWL6 = .FALSE.
   !/
   !/ SWL packet indices and array ids, 0-based as WwSwlRpar, WwSwlIpar and
@@ -572,6 +640,8 @@ MODULE W3KOKKOSMD
   !/
   !> Kokkos W3SPR1, W3SIN1, W3SDS1: WW_KOKKOS_SPR1/SIN1/SDS1=1. Set by
   !> W3KOKKOS_ST1_SETUP, .FALSE. until then.
+  !> parity: ⚠ judgement, CPU likely (sincosf, libmvec loops reproduced); GPU
+  !> unlikely (libdevice sincosf); not run.
   LOGICAL :: KOKKOS_SPR1 = .FALSE., KOKKOS_SIN1 = .FALSE.,             &
              KOKKOS_SDS1 = .FALSE.
   !/
@@ -653,6 +723,8 @@ MODULE W3KOKKOSMD
   !/
   !> Kokkos W3SPR2, W3SIN2, W3SDS2: WW_KOKKOS_SPR2/SIN2/SDS2=1, read by
   !> W3KOKKOS_ST2_SETUP. .FALSE. until then: the Fortran runs.
+  !> parity: ⚠ judgement, CPU likely (logf, sincosf, powf, x87 fprem MOD, libmvec);
+  !> GPU unlikely (libdevice); not run.
   LOGICAL :: KOKKOS_SPR2 = .FALSE., KOKKOS_SIN2 = .FALSE.,             &
              KOKKOS_SDS2 = .FALSE.
   !/
@@ -732,6 +804,8 @@ MODULE W3KOKKOSMD
   !/
   !> Kokkos W3SPR3, W3SIN3, W3SDS3: WW_KOKKOS_SPR3/SIN3/SDS3=1, read by
   !> W3KOKKOS_ST3_SETUP. .FALSE. until then: the Fortran runs.
+  !> parity: ⚠ judgement, CPU likely (expf, logf, powf, sincosf, libmvec); GPU
+  !> unlikely (libdevice); not run.
   LOGICAL :: KOKKOS_SPR3 = .FALSE., KOKKOS_SIN3 = .FALSE.,             &
              KOKKOS_SDS3 = .FALSE.
   !/
@@ -818,6 +892,8 @@ MODULE W3KOKKOSMD
   !/
   !> Kokkos W3SPR6, W3SIN6, W3SDS6: WW_KOKKOS_SPR6/SIN6/SDS6=1, read by
   !> W3KOKKOS_ST6_SETUP. .FALSE. until then: the Fortran runs.
+  !> parity: ⚠ judgement, CPU likely (expf, logf, tanhf, powf, libmvec); GPU
+  !> unlikely (libdevice); not run.
   LOGICAL :: KOKKOS_SPR6 = .FALSE., KOKKOS_SIN6 = .FALSE.,             &
              KOKKOS_SDS6 = .FALSE.
   !/
@@ -899,6 +975,98 @@ MODULE W3KOKKOSMD
   END INTERFACE
 #endif
   !/
+  !/ Run-time flags and W3WAVE's support routines (ww_kokkos_c.hpp, "Run-time
+  !/ flags" and "W3WAVE's per-step support routines"). Every one returns a
+  !/ WwKokkosStatus, 0 on success, except WW_KOKKOS_FLAG.
+  !/
+  INTERFACE
+     !> 0 off, 1 on (WW_KOKKOS_<PART>=1), 2 on (unset, WW_KOKKOS_ALL=1).
+     INTEGER(C_INT) FUNCTION WW_KOKKOS_FLAG ( NAME )                    &
+          BIND(C, NAME='ww_kokkos_flag')
+       IMPORT :: C_INT, C_CHAR
+       CHARACTER(KIND=C_CHAR), INTENT(IN) :: NAME(*)
+     END FUNCTION WW_KOKKOS_FLAG
+     INTEGER(C_INT) FUNCTION WW_WAVE_GATH ( ISPEC, NSPEC, NSEA, NCOL,     &
+          MSEA, NX, NY, VA, MAPSF, FIELD ) BIND(C, NAME='ww_wave_gath')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE      :: ISPEC, NSPEC, NSEA, NCOL, MSEA, NX, NY
+       REAL(C_FLOAT), INTENT(IN)  :: VA(*)
+       INTEGER(C_INT), INTENT(IN) :: MAPSF(*)
+       REAL(C_FLOAT), INTENT(OUT) :: FIELD(*)
+     END FUNCTION WW_WAVE_GATH
+     INTEGER(C_INT) FUNCTION WW_WAVE_SCAT ( ISPEC, NSPEC, NSEA, NCOL,     &
+          MSEA, NX, NY, MAPSTA, FIELD, MAPSF, VA )                       &
+          BIND(C, NAME='ww_wave_scat')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE        :: ISPEC, NSPEC, NSEA, NCOL, MSEA, NX, NY
+       INTEGER(C_INT), INTENT(IN)   :: MAPSTA(*), MAPSF(*)
+       REAL(C_FLOAT), INTENT(IN)    :: FIELD(*)
+       REAL(C_FLOAT), INTENT(INOUT) :: VA(*)
+     END FUNCTION WW_WAVE_SCAT
+     INTEGER(C_INT) FUNCTION WW_WAVE_UWND ( FLFRST, DT0N, DT0T, FLCUR,    &
+          RWINDC, NSEA, MSEA, NX, NY, MAPSF, WX0, WY0, DT0, WXN, WYN,    &
+          DTN, CX, CY, UA0, UAI, UD0, UDI, AS0, ASI, UA, UD, AS, U10,    &
+          U10D ) BIND(C, NAME='ww_wave_uwnd')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE        :: FLFRST, FLCUR, NSEA, MSEA, NX, NY
+       REAL(C_FLOAT), VALUE         :: DT0N, DT0T, RWINDC
+       INTEGER(C_INT), INTENT(IN)   :: MAPSF(*)
+       REAL(C_FLOAT), INTENT(IN)    :: WX0(*), WY0(*), DT0(*), WXN(*),  &
+                                       WYN(*), DTN(*), CX(*), CY(*)
+       REAL(C_FLOAT), INTENT(INOUT) :: UA0(*), UAI(*), UD0(*), UDI(*),  &
+                                       AS0(*), ASI(*)
+       REAL(C_FLOAT), INTENT(OUT)   :: UA(*), UD(*), AS(*), U10(*),     &
+                                       U10D(*)
+     END FUNCTION WW_WAVE_UWND
+     INTEGER(C_INT) FUNCTION WW_WAVE_UTRN ( NX, NY, NSEA, MSEA, TRFLAG,   &
+          FICE0, FICEN, FICEL, FFACBERG, FLAGLL, TRNX, TRNY, MAPSF,      &
+          MAPSTA, HPFAC, HQFAC, ICE, BERG, ATRNX, ATRNY )                &
+          BIND(C, NAME='ww_wave_utrn')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE      :: NX, NY, NSEA, MSEA, TRFLAG, FLAGLL
+       REAL(C_FLOAT), VALUE       :: FICE0, FICEN, FICEL, FFACBERG
+       REAL(C_FLOAT), INTENT(IN)  :: TRNX(*), TRNY(*), HPFAC(*),        &
+                                     HQFAC(*), ICE(*), BERG(*)
+       INTEGER(C_INT), INTENT(IN) :: MAPSF(*), MAPSTA(*)
+       REAL(C_FLOAT), INTENT(OUT) :: ATRNX(*), ATRNY(*)
+     END FUNCTION WW_WAVE_UTRN
+     INTEGER(C_INT) FUNCTION WW_WAVE_DZXY ( NSEA, NX, NY, ZZ, MAPSTA,     &
+          MAPFS, DPDX, DPDY, DQDX, DQDY, FLAGLL, ICLOSE, DZZDX, DZZDY )  &
+          BIND(C, NAME='ww_wave_dzxy')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE      :: NSEA, NX, NY, FLAGLL, ICLOSE
+       REAL(C_FLOAT), INTENT(IN)  :: ZZ(*), DPDX(*), DPDY(*), DQDX(*),  &
+                                     DQDY(*)
+       INTEGER(C_INT), INTENT(IN) :: MAPSTA(*), MAPFS(*)
+       REAL(C_FLOAT), INTENT(OUT) :: DZZDX(*), DZZDY(*)
+     END FUNCTION WW_WAVE_DZXY
+     INTEGER(C_INT) FUNCTION WW_WAVE_MAP3 ( NX, NY, NSEA, MSEA, NK, NTH,  &
+          GTYPE, MAPSTA, MAPSF, MAPX2, MAPY2, MAPAXY, MAPCXY, MAPTH2,    &
+          MAPWN2, COUNTS ) BIND(C, NAME='ww_wave_map3')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE         :: NX, NY, NSEA, MSEA, NK, NTH, GTYPE
+       INTEGER(C_INT), INTENT(IN)    :: MAPSTA(*), MAPSF(*)
+       INTEGER(C_INT), INTENT(INOUT) :: MAPX2(*), MAPY2(*), MAPAXY(*),  &
+                                        MAPCXY(*), MAPTH2(*), MAPWN2(*)
+       INTEGER(C_INT), INTENT(OUT)   :: COUNTS(8)
+     END FUNCTION WW_WAVE_MAP3
+     INTEGER(C_INT) FUNCTION WW_WAVE_MAPT ( NSEA, MSEA, NCELL, MAPSF,     &
+          ATRNX, ATRNY, MAPTRN ) BIND(C, NAME='ww_wave_mapt')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE         :: NSEA, MSEA, NCELL
+       INTEGER(C_INT), INTENT(IN)    :: MAPSF(*)
+       REAL(C_FLOAT), INTENT(IN)     :: ATRNX(*), ATRNY(*)
+       INTEGER(C_INT), INTENT(INOUT) :: MAPTRN(*)
+     END FUNCTION WW_WAVE_MAPT
+     INTEGER(C_INT) FUNCTION WW_WAVE_DISTAB ( NAR1D, EWN1, ECG1, N1MAX,   &
+          DSIE ) BIND(C, NAME='ww_wave_distab')
+       IMPORT :: C_INT, C_FLOAT
+       INTEGER(C_INT), VALUE       :: NAR1D
+       REAL(C_FLOAT), INTENT(INOUT)  :: EWN1(*), ECG1(*), DSIE
+       INTEGER(C_INT), INTENT(INOUT) :: N1MAX
+     END FUNCTION WW_WAVE_DISTAB
+  END INTERFACE
+  !/
 CONTAINS
   !/ ------------------------------------------------------------------- /
   !> @brief Read the run-time switches from the shim into module variables.
@@ -928,8 +1096,134 @@ CONTAINS
 #ifdef W3_ST6
     KOKKOS_SWL6 = ( WW_SWL_ENABLED(1_C_INT) == 1_C_INT )
 #endif
+#ifdef W3_KOKKOS
+    KOKKOS_GATH   = KOKKOS_PART ( 'GATH', HAS_GATH )
+    KOKKOS_SCAT   = KOKKOS_PART ( 'SCAT', HAS_GATH )
+    KOKKOS_UWND   = KOKKOS_PART ( 'UWND', HAS_UWND )
+    KOKKOS_UTRN   = KOKKOS_PART ( 'UTRN', HAS_UTRN )
+    KOKKOS_DZXY   = KOKKOS_PART ( 'DZXY', .TRUE. )
+    KOKKOS_MAP3   = KOKKOS_PART ( 'MAP3', HAS_PR3 )
+    KOKKOS_MAPT   = KOKKOS_PART ( 'MAPT', HAS_PR3 )
+    KOKKOS_DISTAB = KOKKOS_PART ( 'DISTAB', .TRUE. )
+#endif
     !
   END SUBROUTINE W3KOKKOS_SETUP
+  !/ ------------------------------------------------------------------- /
+  !> The state of WW_KOKKOS_<PART>: 0 off, 1 set to 1, 2 on by WW_KOKKOS_ALL=1.
+  INTEGER FUNCTION KOKKOS_FLAG ( PART )
+    IMPLICIT NONE
+    CHARACTER(LEN=*), INTENT(IN) :: PART
+    KOKKOS_FLAG = INT ( WW_KOKKOS_FLAG ( 'WW_KOKKOS_'//PART//C_NULL_CHAR ) )
+  END FUNCTION KOKKOS_FLAG
+#ifdef W3_KOKKOS
+  !/ ------------------------------------------------------------------- /
+  !> .TRUE. when part PART runs on Kokkos. SUPPORTED is whether its translation
+  !> covers this switch file: WW_KOKKOS_ALL=1 then leaves the part on the Fortran,
+  !> WW_KOKKOS_<PART>=1 stops the model rather than run the Fortran silently.
+  LOGICAL FUNCTION KOKKOS_PART ( PART, SUPPORTED )
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    CHARACTER(LEN=*), INTENT(IN) :: PART
+    LOGICAL, INTENT(IN)          :: SUPPORTED
+    INTEGER                      :: F
+    F = KOKKOS_FLAG ( PART )
+    KOKKOS_PART = F /= 0 .AND. SUPPORTED
+    IF ( F == 1 .AND. .NOT. SUPPORTED ) THEN
+      WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3KOKKOSMD : '//     &
+           'WW_KOKKOS_'//PART//'=1, BUT ITS KOKKOS TRANSLATION DOES '//    &
+           'NOT COVER THIS SWITCH FILE'
+      CALL EXTCDE ( 1 )
+    END IF
+  END FUNCTION KOKKOS_PART
+  !/ ------------------------------------------------------------------- /
+  !> One line in the log: every part this build can run on Kokkos, K (Kokkos)
+  !> or F (Fortran) for this run, and how many are on Kokkos. Call from W3INIT
+  !> after every W3KOKKOS_*_SETUP.
+  SUBROUTINE W3KOKKOS_REPORT ( NDS )
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: NDS
+    CHARACTER(LEN=2048)     :: LINE
+    INTEGER                 :: NON, NALL
+    LINE = ''
+    NON = 0
+    NALL = 0
+#ifdef W3_NL1
+    CALL ADD ( 'SNL1', KOKKOS_SNL1 )
+#endif
+#ifdef W3_ST4
+    CALL ADD ( 'SDS4', KOKKOS_SDS4 )
+    CALL ADD ( 'SIN4', KOKKOS_SIN4 )
+    CALL ADD ( 'SPR4', KOKKOS_SPR4 )
+    CALL ADD ( 'ST4_TABLES', KOKKOS_FLAG('ST4_TABLES') /= 0 .AND.        &
+         ( KOKKOS_SDS4 .OR. KOKKOS_SIN4 .OR. KOKKOS_SPR4 .OR. KOKKOS_SRCE ) )
+#endif
+#if defined(W3_ST4) && defined(W3_NL1)
+    CALL ADD ( 'SRCE', KOKKOS_SRCE )
+#endif
+#ifdef W3_ST0
+    CALL ADD ( 'SPR0', KOKKOS_SPR0 )
+#endif
+#ifdef W3_ST1
+    CALL ADD ( 'SPR1', KOKKOS_SPR1 )
+    CALL ADD ( 'SIN1', KOKKOS_SIN1 )
+    CALL ADD ( 'SDS1', KOKKOS_SDS1 )
+#endif
+#ifdef W3_ST2
+    CALL ADD ( 'SPR2', KOKKOS_SPR2 )
+    CALL ADD ( 'SIN2', KOKKOS_SIN2 )
+    CALL ADD ( 'SDS2', KOKKOS_SDS2 )
+#endif
+#ifdef W3_ST3
+    CALL ADD ( 'SPR3', KOKKOS_SPR3 )
+    CALL ADD ( 'SIN3', KOKKOS_SIN3 )
+    CALL ADD ( 'SDS3', KOKKOS_SDS3 )
+#endif
+#ifdef W3_ST6
+    CALL ADD ( 'SPR6', KOKKOS_SPR6 )
+    CALL ADD ( 'SIN6', KOKKOS_SIN6 )
+    CALL ADD ( 'SDS6', KOKKOS_SDS6 )
+    CALL ADD ( 'SWL6', KOKKOS_SWL6 )
+#endif
+#ifdef W3_FLX1
+    CALL ADD ( 'FLX1', KOKKOS_FLX1 )
+#endif
+#ifdef W3_FLX2
+    CALL ADD ( 'FLX2', KOKKOS_FLX2 )
+#endif
+#ifdef W3_FLX3
+    CALL ADD ( 'FLX3', KOKKOS_FLX3 )
+#endif
+#ifdef W3_FLX4
+    CALL ADD ( 'FLX4', KOKKOS_FLX4 )
+#endif
+#ifdef W3_FLX5
+    CALL ADD ( 'FLX5', KOKKOS_FLX5 )
+#endif
+#if defined(W3_FLX2) || defined(W3_FLX3)
+    CALL ADD ( 'FLX_TABLES', KOKKOS_FLAG('FLX_TABLES') /= 0 .AND.        &
+         ( KOKKOS_FLX2 .OR. KOKKOS_FLX3 ) )
+#endif
+    IF ( HAS_GATH ) CALL ADD ( 'GATH', KOKKOS_GATH )
+    IF ( HAS_GATH ) CALL ADD ( 'SCAT', KOKKOS_SCAT )
+    IF ( HAS_UWND ) CALL ADD ( 'UWND', KOKKOS_UWND )
+    IF ( HAS_UTRN ) CALL ADD ( 'UTRN', KOKKOS_UTRN )
+    CALL ADD ( 'DZXY', KOKKOS_DZXY )
+    IF ( HAS_PR3 ) CALL ADD ( 'MAP3', KOKKOS_MAP3 )
+    IF ( HAS_PR3 ) CALL ADD ( 'MAPT', KOKKOS_MAPT )
+    CALL ADD ( 'DISTAB', KOKKOS_DISTAB )
+    WRITE (NDS,'(A,I0,A,I0,A)') '  Kokkos parts (K Kokkos, F Fortran):'//  &
+         TRIM(LINE)//' (', NON, ' of ', NALL, ' on Kokkos)'
+  CONTAINS
+    SUBROUTINE ADD ( NAME, ON )
+      CHARACTER(LEN=*), INTENT(IN) :: NAME
+      LOGICAL, INTENT(IN)          :: ON
+      NALL = NALL + 1
+      IF ( ON ) NON = NON + 1
+      LINE = TRIM(LINE)//' '//NAME//'='//MERGE('K', 'F', ON)
+    END SUBROUTINE ADD
+  END SUBROUTINE W3KOKKOS_REPORT
+#endif
 #ifdef W3_ST0
   !/ ------------------------------------------------------------------- /
   !> @brief Give the shim grid IMOD's ST0 scalars and arrays.
@@ -1368,6 +1662,14 @@ CONTAINS
 #endif
 #endif
 #endif
+    ! WW_KOKKOS_ALL=1 on a switch file the kernel does not translate: keep the
+    ! Fortran W3SRCE. WW_KOKKOS_SRCE=1 there still stops in WW_SRCE_INIT.
+    IF ( IPAR(IS_LAB_SWITCH+1) /= 1 ) THEN
+      IF ( KOKKOS_FLAG('SRCE') == 2 ) THEN
+        KOKKOS_SRCE = .FALSE.
+        RETURN
+      END IF
+    END IF
     !
     CALL SRCE_CHECK ( 'WW_SRCE_INIT', WW_SRCE_INIT ( IMOD, RPAR, NRSPAR, &
          IPAR, NISPAR, SIG(1:NK), DDEN(1:NK), ECOS(1:NSPEC),             &
@@ -2465,6 +2767,221 @@ CONTAINS
 6065 FORMAT (' *** WAVEWATCH III ERROR IN W3SDS6 : '/ &
        '     INDEX ARRAY DIM MISMATCH SIZE(IKN)=',I4,' .NE. NK=',I4)
   END SUBROUTINE W3KOKKOS_SDS6
+#endif
+#ifdef W3_KOKKOS
+  !/ ------------------------------------------------------------------- /
+  !/ W3WAVE's support routines on Kokkos (ww3-gpu, wave_support_shim.cpp). Each
+  !/ W3KOKKOS_<R> has the dummy list of the Fortran routine it replaces, passes
+  !/ the module arrays that routine reads to the shim, which copies them to the
+  !/ device and the results back (phase 1), and stops with EXTCDE on a failure.
+  !/ No pointer is associated or allocated here: the shim reads and writes the
+  !/ arrays the Fortran owns, as the Fortran routine would. Serialised in
+  !/ !$OMP CRITICAL (WW_KOKKOS_WAVE): the shim's buffers are per call, but a
+  !/ CRITICAL keeps the one-caller rule of every shim.
+  !/
+  SUBROUTINE WAVE_CHECK ( WHAT, IERR )
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    CHARACTER(LEN=*), INTENT(IN) :: WHAT
+    INTEGER(C_INT), INTENT(IN)   :: IERR
+    IF ( IERR /= 0_C_INT ) THEN
+      WRITE (NDSE,'(A,I0)') '*** WAVEWATCH III ERROR IN W3KOKKOSMD : '// &
+           'KOKKOS '//WHAT//' FAILED, CODE ', IERR
+      CALL EXTCDE ( 1 )
+    END IF
+  END SUBROUTINE WAVE_CHECK
+  !/ ------------------------------------------------------------------- /
+  !> W3GATH (w3wavemd.F90, W3_SHRD branch) on Kokkos.
+  SUBROUTINE W3KOKKOS_GATH ( ISPEC, FIELD )
+    USE W3GDATMD, ONLY: NX, NY, NSEA, NSPEC, MAPSF
+    USE W3WDATMD, ONLY: VA
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: ISPEC
+    REAL, INTENT(OUT)       :: FIELD(1-NY:NY*(NX+2))
+    INTEGER(C_INT)          :: IERR
+#ifdef W3KOKKOS_HAS_GATH
+    !$OMP CRITICAL (WW_KOKKOS_WAVE)
+    IERR = WW_WAVE_GATH ( ISPEC, NSPEC, NSEA, SIZE(VA,2), SIZE(MAPSF,1),  &
+         NX, NY, VA, MAPSF, FIELD )
+    !$OMP END CRITICAL (WW_KOKKOS_WAVE)
+#else
+    FIELD = 0.
+    IERR = 5_C_INT
+#endif
+    CALL WAVE_CHECK ( 'W3GATH', IERR )
+  END SUBROUTINE W3KOKKOS_GATH
+  !/ ------------------------------------------------------------------- /
+  !> W3SCAT (w3wavemd.F90, W3_SHRD branch) on Kokkos.
+  SUBROUTINE W3KOKKOS_SCAT ( ISPEC, MAPSTA, FIELD )
+    USE W3GDATMD, ONLY: NX, NY, NSEA, NSPEC, MAPSF
+    USE W3WDATMD, ONLY: VA
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: ISPEC, MAPSTA(NY*NX)
+    REAL, INTENT(IN)        :: FIELD(1-NY:NY*(NX+2))
+    INTEGER(C_INT)          :: IERR
+#ifdef W3KOKKOS_HAS_GATH
+    !$OMP CRITICAL (WW_KOKKOS_WAVE)
+    IERR = WW_WAVE_SCAT ( ISPEC, NSPEC, NSEA, SIZE(VA,2), SIZE(MAPSF,1),  &
+         NX, NY, MAPSTA, FIELD, MAPSF, VA )
+    !$OMP END CRITICAL (WW_KOKKOS_WAVE)
+#else
+    IERR = 5_C_INT
+#endif
+    CALL WAVE_CHECK ( 'W3SCAT', IERR )
+  END SUBROUTINE W3KOKKOS_SCAT
+  !/ ------------------------------------------------------------------- /
+  !> W3UWND (w3updtmd.F90, WNT1 with or without RWND) on Kokkos. DT0N and DT0T
+  !> are computed here as W3UWND computes them, REALs from DSEC21. W3UWND's
+  !> VGX and VGY are read only under MGW, which the translation does not cover.
+  SUBROUTINE W3KOKKOS_UWND ( FLFRST )
+#ifdef W3KOKKOS_HAS_UWND
+    USE W3GDATMD, ONLY: NSEA, NX, NY, MAPSF
+#ifdef W3_RWND
+    USE W3GDATMD, ONLY: RWINDC
+#endif
+    USE W3WDATMD, ONLY: TIME
+    USE W3ADATMD, ONLY: CX, CY, UA, UD, U10, U10D, AS,                 &
+         UA0, UAI, UD0, UDI, AS0, ASI
+    USE W3IDATMD, ONLY: TW0, WX0, WY0, DT0, TWN, WXN, WYN, DTN, FLCUR
+    USE W3TIMEMD, ONLY: DSEC21
+#endif
+    IMPLICIT NONE
+    LOGICAL, INTENT(IN)     :: FLFRST
+    INTEGER(C_INT)          :: IERR
+#ifdef W3KOKKOS_HAS_UWND
+    REAL                    :: DT0N, DT0T, RW
+    INTEGER(C_INT)          :: FC
+    DT0N = DSEC21 ( TW0, TWN )
+    DT0T = DSEC21 ( TW0, TIME )
+#ifdef W3_RWND
+    RW = RWINDC
+    FC = MERGE ( 1_C_INT, 0_C_INT, FLCUR )
+#else
+    RW = 0.
+    FC = 0_C_INT
+#endif
+    !$OMP CRITICAL (WW_KOKKOS_WAVE)
+    IERR = WW_WAVE_UWND ( MERGE(1_C_INT, 0_C_INT, FLFRST), DT0N, DT0T,  &
+         FC, RW, NSEA, SIZE(MAPSF,1), NX, NY, MAPSF, WX0, WY0, DT0,     &
+         WXN, WYN, DTN, CX(1:NSEA), CY(1:NSEA), UA0, UAI, UD0, UDI,     &
+         AS0, ASI, UA(1:NSEA), UD(1:NSEA), AS(1:NSEA), U10, U10D )
+    !$OMP END CRITICAL (WW_KOKKOS_WAVE)
+#else
+    IERR = 5_C_INT
+#endif
+    CALL WAVE_CHECK ( 'W3UWND', IERR )
+  END SUBROUTINE W3KOKKOS_UWND
+  !/ ------------------------------------------------------------------- /
+  !> W3UTRN (w3updtmd.F90, IC0) on Kokkos. TRNY is passed as W3UTRN receives
+  !> it, so the shim reads TRNY(0) (w3updtmd.F90:2954 with TRFLAG = 1, 3, 5 at
+  !> a sea point IXY = 1) at the address the Fortran reads.
+  SUBROUTINE W3KOKKOS_UTRN ( TRNX, TRNY )
+    USE W3GDATMD, ONLY: NX, NY, NSEA, MAPSTA, MAPSF, TRFLAG, FICE0,     &
+         FICEN, FICEL, FLAGLL, HPFAC, HQFAC, FFACBERG
+    USE W3WDATMD, ONLY: ICE, BERG
+    USE W3ADATMD, ONLY: ATRNX, ATRNY
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: TRNX(NY*NX), TRNY(NY*NX)
+    INTEGER(C_INT)          :: IERR
+#ifdef W3KOKKOS_HAS_UTRN
+    !$OMP CRITICAL (WW_KOKKOS_WAVE)
+    IERR = WW_WAVE_UTRN ( NX, NY, NSEA, SIZE(MAPSF,1), TRFLAG, FICE0,    &
+         FICEN, FICEL, FFACBERG, MERGE(1_C_INT, 0_C_INT, FLAGLL), TRNX, &
+         TRNY, MAPSF, MAPSTA, HPFAC, HQFAC, ICE, BERG, ATRNX, ATRNY )
+    !$OMP END CRITICAL (WW_KOKKOS_WAVE)
+#else
+    IERR = 5_C_INT
+#endif
+    CALL WAVE_CHECK ( 'W3UTRN', IERR )
+  END SUBROUTINE W3KOKKOS_UTRN
+  !/ ------------------------------------------------------------------- /
+  !> W3DZXY (w3updtmd.F90) on Kokkos. ZUNIT is read only by the W3_T print.
+  !> ZZ, DZZDX, DZZDY must be contiguous: the W3_REFRX call with the strided
+  !> DCDX(IK,:,:) keeps the Fortran (w3wavemd.F90).
+  SUBROUTINE W3KOKKOS_DZXY ( ZZ, ZUNIT, DZZDX, DZZDY )
+    USE W3GDATMD, ONLY: NX, NY, NSEA, MAPSTA, MAPFS, DPDX, DPDY, DQDX, &
+         DQDY, FLAGLL, ICLOSE
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: ZZ(NSEA)
+    CHARACTER, INTENT(IN)   :: ZUNIT*(*)
+    REAL, INTENT(OUT)       :: DZZDX(NY,NX), DZZDY(NY,NX)
+    INTEGER(C_INT)          :: IERR
+    !$OMP CRITICAL (WW_KOKKOS_WAVE)
+    IERR = WW_WAVE_DZXY ( NSEA, NX, NY, ZZ, MAPSTA, MAPFS, DPDX, DPDY,   &
+         DQDX, DQDY, MERGE(1_C_INT, 0_C_INT, FLAGLL), ICLOSE, DZZDX,    &
+         DZZDY )
+    !$OMP END CRITICAL (WW_KOKKOS_WAVE)
+    CALL WAVE_CHECK ( 'W3DZXY '//ZUNIT, IERR )
+  END SUBROUTINE W3KOKKOS_DZXY
+  !/ ------------------------------------------------------------------- /
+  !> W3MAP3 (w3pro3md.F90) on Kokkos, for GTYPE < 3 only: the caller keeps the
+  !> Fortran W3MAP3 on other grids, where MAPCXY need not be allocated.
+  SUBROUTINE W3KOKKOS_MAP3
+    USE W3GDATMD, ONLY: NK, NTH, NX, NY, NSEA, MAPSTA, MAPSF, GTYPE
+    USE W3ADATMD, ONLY: NMX0, NMX1, NMX2, NMY0, NMY1, NMY2, NACT,      &
+         NCENT, MAPX2, MAPY2, MAPAXY, MAPCXY, MAPTH2, MAPWN2
+    IMPLICIT NONE
+    INTEGER(C_INT)          :: IERR, COUNTS(8)
+#ifdef W3KOKKOS_HAS_PR3
+    !$OMP CRITICAL (WW_KOKKOS_WAVE)
+    IERR = WW_WAVE_MAP3 ( NX, NY, NSEA, SIZE(MAPSF,1), NK, NTH, GTYPE,   &
+         MAPSTA, MAPSF, MAPX2, MAPY2, MAPAXY, MAPCXY, MAPTH2, MAPWN2,   &
+         COUNTS )
+    !$OMP END CRITICAL (WW_KOKKOS_WAVE)
+#else
+    COUNTS = 0
+    IERR = 5_C_INT
+#endif
+    CALL WAVE_CHECK ( 'W3MAP3', IERR )
+    NMX0  = COUNTS(1)
+    NMX1  = COUNTS(2)
+    NMX2  = COUNTS(3)
+    NMY0  = COUNTS(4)
+    NMY1  = COUNTS(5)
+    NMY2  = COUNTS(6)
+    NACT  = COUNTS(7)
+    NCENT = COUNTS(8)
+  END SUBROUTINE W3KOKKOS_MAP3
+  !/ ------------------------------------------------------------------- /
+  !> W3MAPT (w3pro3md.F90) on Kokkos. MAPTRN is LOGICAL in WW3 and 0/1 in the
+  !> shim; cells that are not sea points keep their value.
+  SUBROUTINE W3KOKKOS_MAPT
+    USE W3GDATMD, ONLY: NX, NY, NSEA, MAPSF
+    USE W3ADATMD, ONLY: ATRNX, ATRNY, MAPTRN
+    IMPLICIT NONE
+    INTEGER(C_INT)              :: IERR
+    INTEGER(C_INT), ALLOCATABLE :: TRN(:)
+#ifdef W3KOKKOS_HAS_PR3
+    ALLOCATE ( TRN(NY*NX) )
+    TRN = MERGE ( 1_C_INT, 0_C_INT, MAPTRN(1:NY*NX) )
+    !$OMP CRITICAL (WW_KOKKOS_WAVE)
+    IERR = WW_WAVE_MAPT ( NSEA, SIZE(MAPSF,1), NY*NX, MAPSF, ATRNX,      &
+         ATRNY, TRN )
+    !$OMP END CRITICAL (WW_KOKKOS_WAVE)
+    MAPTRN(1:NY*NX) = TRN /= 0_C_INT
+    DEALLOCATE ( TRN )
+#else
+    IERR = 5_C_INT
+#endif
+    CALL WAVE_CHECK ( 'W3MAPT', IERR )
+  END SUBROUTINE W3KOKKOS_MAPT
+  !/ ------------------------------------------------------------------- /
+  !> DISTAB (w3dispmd.F90) on Kokkos: rebuilds W3DISPMD's EWN1, ECG1, N1MAX and
+  !> DSIE, which W3IOGR('READ') filled with the Fortran DISTAB before W3INIT
+  !> could start Kokkos. Once per process, as W3IOGR's SAVE flag FLDISP does.
+  SUBROUTINE W3KOKKOS_DISTAB
+    USE W3DISPMD, ONLY: NAR1D, EWN1, ECG1, N1MAX, DSIE
+    IMPLICIT NONE
+    LOGICAL, SAVE           :: DONE = .FALSE.
+    INTEGER(C_INT)          :: IERR
+    IF ( DONE ) RETURN
+    !$OMP CRITICAL (WW_KOKKOS_WAVE)
+    IERR = WW_WAVE_DISTAB ( NAR1D, EWN1, ECG1, N1MAX, DSIE )
+    !$OMP END CRITICAL (WW_KOKKOS_WAVE)
+    CALL WAVE_CHECK ( 'DISTAB', IERR )
+    DONE = .TRUE.
+  END SUBROUTINE W3KOKKOS_DISTAB
 #endif
   !/ ------------------------------------------------------------------- /
   !/

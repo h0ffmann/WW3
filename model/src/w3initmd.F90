@@ -822,16 +822,27 @@ CONTAINS
 #if defined(W3_ST4) && defined(W3_NL1)
     IF ( KOKKOS_SRCE ) THEN
       CALL W3KOKKOS_SRCE_SETUP ( IMOD )
-      WRITE (NDSO,'(A)') '  Kokkos W3SRCE (with ST4, W3SNL1, W3SLN1, '//   &
-           'W3SBT1, W3SDB1) enabled.'
+      IF ( KOKKOS_SRCE ) WRITE (NDSO,'(A)') '  Kokkos W3SRCE (with ST4, '//  &
+           'W3SNL1, W3SLN1, W3SBT1, W3SDB1) enabled.'
     END IF
 #else
+    ! WW_KOKKOS_ALL=1 leaves W3SRCE on the Fortran here; WW_KOKKOS_SRCE=1 stops.
+    IF ( KOKKOS_SRCE ) THEN
+      IF ( KOKKOS_FLAG('SRCE') == 2 ) KOKKOS_SRCE = .FALSE.
+    END IF
     IF ( KOKKOS_SRCE ) THEN
       WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3INIT : '//           &
            'WW_KOKKOS_SRCE=1 needs the ST4 and NL1 switches'
       CALL EXTCDE ( 1 )
     END IF
 #endif
+    !
+    ! 2.a.2 DISTAB's tables were built by the Fortran inside W3IOGR above,
+    !       before Kokkos was started: WW_KOKKOS_DISTAB=1 rebuilds them.
+    !       Then one log line with every part on Kokkos or Fortran.
+    !
+    IF ( KOKKOS_DISTAB ) CALL W3KOKKOS_DISTAB
+    CALL W3KOKKOS_REPORT ( NDSO )
 #endif
     IF (GTYPE .eq. UNGTYPE) THEN
       CALL SPATIAL_GRID

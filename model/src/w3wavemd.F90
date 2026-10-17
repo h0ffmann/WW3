@@ -449,6 +449,12 @@ CONTAINS
 #if defined(W3_KOKKOS) && defined(W3_ST4) && defined(W3_NL1)
     USE W3KOKKOSMD, ONLY: W3KOKKOS_SRCE_ON, W3KOKKOS_SRCE
 #endif
+#ifdef W3_KOKKOS
+    USE W3KOKKOSMD, ONLY: KOKKOS_DZXY, KOKKOS_UWND, KOKKOS_MAP3,        &
+         KOKKOS_UTRN, KOKKOS_MAPT, KOKKOS_GATH, KOKKOS_SCAT,            &
+         W3KOKKOS_DZXY, W3KOKKOS_UWND, W3KOKKOS_MAP3, W3KOKKOS_UTRN,    &
+         W3KOKKOS_MAPT, W3KOKKOS_GATH, W3KOKKOS_SCAT
+#endif
     !/
 #ifdef W3_MPI
     USE W3ODATMD,  ONLY : NRQGO, NRQGO2, IRQGO, IRQGO2, NRQPO, IRQPO1
@@ -1213,8 +1219,18 @@ CONTAINS
             UGDTUPDATE=.TRUE.
             CFLXYMAX = 0.
           ELSE
+#ifdef W3_KOKKOS
+            ! ww3-gpu: W3DZXY on Kokkos under WW_KOKKOS_DZXY=1.
+            IF ( KOKKOS_DZXY ) THEN
+              CALL W3KOKKOS_DZXY(CX(1:UBOUND(CX,1)),'m/s',DCXDX, DCXDY)
+              CALL W3KOKKOS_DZXY(CY(1:UBOUND(CY,1)),'m/s',DCYDX, DCYDY)
+            ELSE
+#endif
             CALL W3DZXY(CX(1:UBOUND(CX,1)),'m/s',DCXDX, DCXDY) !CX GRADIENT
             CALL W3DZXY(CY(1:UBOUND(CY,1)),'m/s',DCYDX, DCYDY) !CY GRADIENT
+#ifdef W3_KOKKOS
+            END IF
+#endif
           ENDIF  !! End GTYPE
           !
           call print_memcheck(memunit, 'memcheck_____:'//' WW3_WAVE TIME LOOP 4')
@@ -1233,7 +1249,16 @@ CONTAINS
 
         IF ( FLWIND ) THEN
           IF ( FLFRST ) ASF = 1.
+#ifdef W3_KOKKOS
+          ! ww3-gpu: W3UWND on Kokkos under WW_KOKKOS_UWND=1.
+          IF ( KOKKOS_UWND ) THEN
+            CALL W3KOKKOS_UWND ( FLFRST )
+          ELSE
+#endif
           CALL W3UWND ( FLFRST, VGX, VGY )
+#ifdef W3_KOKKOS
+          END IF
+#endif
         ELSE IF ( FLFRST ) THEN
           U10    = 0.01
           U10D   = 0.
@@ -1463,11 +1488,37 @@ CONTAINS
             CALL W3MAP2
 #endif
 #ifdef W3_PR3
+#ifdef W3_KOKKOS
+            ! ww3-gpu: W3MAP3, W3UTRN, W3MAPT on Kokkos under WW_KOKKOS_MAP3,
+            ! _UTRN, _MAPT=1; W3MAP3 only where GTYPE < 3 (MAPCXY allocated).
+            IF ( KOKKOS_MAP3 .AND. GTYPE .LT. 3 ) THEN
+              CALL W3KOKKOS_MAP3
+            ELSE
+#endif
             CALL W3MAP3
+#ifdef W3_KOKKOS
+            END IF
+#endif
+#endif
+#ifdef W3_KOKKOS
+            IF ( KOKKOS_UTRN ) THEN
+              CALL W3KOKKOS_UTRN ( TRNX, TRNY )
+            ELSE
 #endif
             CALL W3UTRN ( TRNX, TRNY )
+#ifdef W3_KOKKOS
+            END IF
+#endif
 #ifdef W3_PR3
+#ifdef W3_KOKKOS
+            IF ( KOKKOS_MAPT ) THEN
+              CALL W3KOKKOS_MAPT
+            ELSE
+#endif
             CALL W3MAPT
+#ifdef W3_KOKKOS
+            END IF
+#endif
 #endif
           END IF  !! GTYPE
 
@@ -1491,7 +1542,15 @@ CONTAINS
           ELSE IF (GTYPE .EQ. UNGTYPE) THEN
             CALL UG_GRADIENTS(DW, DDDX, DDDY)
           ELSE
+#ifdef W3_KOKKOS
+            IF ( KOKKOS_DZXY ) THEN
+              CALL W3KOKKOS_DZXY(DW(1:UBOUND(DW,1)),'m',DDDX,DDDY)
+            ELSE
+#endif
             CALL W3DZXY(DW(1:UBOUND(DW,1)),'m',DDDX,DDDY)
+#ifdef W3_KOKKOS
+            END IF
+#endif
           END IF
           FLDDIR = .FALSE.
         END IF
@@ -1954,7 +2013,16 @@ CONTAINS
                       CALL W3GATHSMC ( ISPEC, FIELD )
 #endif
                     ELSE IF (.NOT.LPDLIB ) THEN
+#ifdef W3_KOKKOS
+                      ! ww3-gpu: W3GATH on Kokkos under WW_KOKKOS_GATH=1.
+                      IF ( KOKKOS_GATH ) THEN
+                        CALL W3KOKKOS_GATH ( ISPEC, FIELD )
+                      ELSE
+#endif
                       CALL W3GATH ( ISPEC, FIELD )
+#ifdef W3_KOKKOS
+                      END IF
+#endif
                     END IF   !! GTYPE
                     !
                     IF (GTYPE .EQ. SMCTYPE) THEN
@@ -2003,7 +2071,16 @@ CONTAINS
                       CALL W3SCATSMC ( ISPEC, MAPSTA, FIELD )
 #endif
                     ELSE IF (.NOT.LPDLIB ) THEN
+#ifdef W3_KOKKOS
+                      ! ww3-gpu: W3SCAT on Kokkos under WW_KOKKOS_SCAT=1.
+                      IF ( KOKKOS_SCAT ) THEN
+                        CALL W3KOKKOS_SCAT ( ISPEC, MAPSTA, FIELD )
+                      ELSE
+#endif
                       CALL W3SCAT ( ISPEC, MAPSTA, FIELD )
+#ifdef W3_KOKKOS
+                      END IF
+#endif
                     END IF   !! GTYPE
 
                   END IF
