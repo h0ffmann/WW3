@@ -74,6 +74,7 @@ MODULE W3KOKKOSMD
   !      Name              Type  Scope    Description
   !     ----------------------------------------------------------------
   !      W3KOKKOS_SETUP    Subr. Public   Read the switches from the shim.
+  !      W3KOKKOS_REGISTER Subr. Public   Add a unit's part to the parts line.
   !      WW_KOKKOS_INIT    Func. Public   bind(C) ww_kokkos_init
   !      WW_KOKKOS_FINALIZE Subr. Public  bind(C) ww_kokkos_finalize
   !      WW_SNL1_INIT      Func. Public   bind(C) ww_snl1_init
@@ -177,6 +178,17 @@ MODULE W3KOKKOSMD
 #else
   LOGICAL, PARAMETER, PRIVATE :: HAS_PR3 = .FALSE.
 #endif
+  !/
+  !/ The part registry (kokkos/src/fortran_iface/PATCH.md, section 9). A wiring
+  !/ unit in its own module w3kokkos_<unit>md.F90 calls W3KOKKOS_REGISTER once per
+  !/ part from its W3KOKKOS_<UNIT>_SETUP, and W3KOKKOS_REPORT prints every
+  !/ registered part after the parts of this module, so a new unit edits no
+  !/ shared list. Registering a name again (W3INIT runs once per grid) updates it.
+  !/
+  INTEGER, PARAMETER, PRIVATE :: KOKKOS_MAXREG = 128
+  INTEGER, SAVE, PRIVATE      :: KOKKOS_NREG = 0
+  CHARACTER(LEN=24), SAVE, PRIVATE :: KOKKOS_REGNAME(KOKKOS_MAXREG) = ''
+  LOGICAL, SAVE, PRIVATE      :: KOKKOS_REGON(KOKKOS_MAXREG) = .FALSE.
 #endif
 #ifdef W3_ST0
   !> Kokkos W3SPR0: WW_KOKKOS_SPR0=1, read by W3KOKKOS_SETUP.
@@ -1137,14 +1149,45 @@ CONTAINS
     END IF
   END FUNCTION KOKKOS_PART
   !/ ------------------------------------------------------------------- /
+  !> Record that part PART (WW_KOKKOS_<PART>) exists in this build and whether
+  !> it runs on Kokkos (ON), for the parts line of W3KOKKOS_REPORT. Called by a
+  !> wiring unit's W3KOKKOS_<UNIT>_SETUP, once per part, after its flag is final.
+  SUBROUTINE W3KOKKOS_REGISTER ( PART, ON )
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    CHARACTER(LEN=*), INTENT(IN) :: PART
+    LOGICAL, INTENT(IN)          :: ON
+    INTEGER                      :: I
+    IF ( LEN_TRIM(PART) == 0 .OR. LEN_TRIM(PART) > LEN(KOKKOS_REGNAME) ) THEN
+      WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3KOKKOSMD : '//     &
+           'W3KOKKOS_REGISTER: BAD PART NAME "'//PART//'"'
+      CALL EXTCDE ( 1 )
+    END IF
+    DO I = 1, KOKKOS_NREG
+      IF ( KOKKOS_REGNAME(I) == PART ) THEN
+        KOKKOS_REGON(I) = ON
+        RETURN
+      END IF
+    END DO
+    IF ( KOKKOS_NREG == KOKKOS_MAXREG ) THEN
+      WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3KOKKOSMD : '//     &
+           'W3KOKKOS_REGISTER: MORE THAN KOKKOS_MAXREG PARTS'
+      CALL EXTCDE ( 1 )
+    END IF
+    KOKKOS_NREG = KOKKOS_NREG + 1
+    KOKKOS_REGNAME(KOKKOS_NREG) = PART
+    KOKKOS_REGON(KOKKOS_NREG) = ON
+  END SUBROUTINE W3KOKKOS_REGISTER
+  !/ ------------------------------------------------------------------- /
   !> One line in the log: every part this build can run on Kokkos, K (Kokkos)
   !> or F (Fortran) for this run, and how many are on Kokkos. Call from W3INIT
   !> after every W3KOKKOS_*_SETUP.
   SUBROUTINE W3KOKKOS_REPORT ( NDS )
     IMPLICIT NONE
     INTEGER, INTENT(IN)     :: NDS
-    CHARACTER(LEN=2048)     :: LINE
-    INTEGER                 :: NON, NALL
+    CHARACTER(LEN=4096)     :: LINE
+    INTEGER                 :: NON, NALL, I
     LINE = ''
     NON = 0
     NALL = 0
@@ -1212,6 +1255,11 @@ CONTAINS
     IF ( HAS_PR3 ) CALL ADD ( 'MAP3', KOKKOS_MAP3 )
     IF ( HAS_PR3 ) CALL ADD ( 'MAPT', KOKKOS_MAPT )
     CALL ADD ( 'DISTAB', KOKKOS_DISTAB )
+    ! The list above is closed (357f575c): a new part registers from its own
+    ! unit module (W3KOKKOS_REGISTER) and is printed here.
+    DO I = 1, KOKKOS_NREG
+      CALL ADD ( TRIM(KOKKOS_REGNAME(I)), KOKKOS_REGON(I) )
+    END DO
     WRITE (NDS,'(A,I0,A,I0,A)') '  Kokkos parts (K Kokkos, F Fortran):'//  &
          TRIM(LINE)//' (', NON, ' of ', NALL, ' on Kokkos)'
   CONTAINS
