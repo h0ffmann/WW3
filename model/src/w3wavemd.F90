@@ -2898,7 +2898,13 @@ CONTAINS
                   !   Gets the necessary spectral data
                   !
 #if defined(W3_KOKKOS) && !defined(W3_MPI)
-                  CALL W3KOKKOS_VA_HOST_READ
+                  ! ww3-gpu: under WW_KOKKOS_IOPE=1 only the columns of VA W3IOPE reads
+                  ! come back from the device (PATCH.md section 16).
+                  IF ( KOKKOS_IOPE ) THEN
+                    CALL W3KOKKOS_IOPE_READ
+                  ELSE
+                    CALL W3KOKKOS_VA_HOST_READ
+                  END IF
 #endif
                   CALL W3IOPE ( VA )
 #ifdef W3_BIN2NC
