@@ -1859,6 +1859,12 @@ CONTAINS
             CALL PRINT_MY_TIME("Before intraspectral")
 #endif
             IF ( FLCTH .OR. FLCK ) THEN
+#ifdef W3_KOKKOS
+              ! ww3-gpu: part 1 of W3KTP3 on Kokkos under WW_KOKKOS_KTP3=1.
+              IF ( KOKKOS_KTP3 ) THEN
+                CALL W3KOKKOS_KTP3 ( FACTH, FACK, ITLOCH )
+              ELSE
+#endif
               DO ITLOC=1, ITLOCH
                 !
 #ifdef W3_OMPG
@@ -1942,6 +1948,9 @@ CONTAINS
 #endif
                 !
               END DO
+#ifdef W3_KOKKOS
+              END IF
+#endif
             END IF
 
             call print_memcheck(memunit, 'memcheck_____:'//' WW3_WAVE TIME LOOP 16')
@@ -2008,6 +2017,12 @@ CONTAINS
                 ! Initialize FIELD variable
                 FIELD = 0.
                 !
+#ifdef W3_KOKKOS
+                ! ww3-gpu: W3GATH, W3XYP3, W3SCAT of every component on Kokkos under WW_KOKKOS_XYP3=1.
+                IF ( KOKKOS_XYP3 ) THEN
+                  CALL W3KOKKOS_XYP3 ( DTG, MAPSTA )
+                ELSE
+#endif
                 DO ISPEC=1, NSPEC
                   IF ( IAPPRO(ISPEC) .EQ. IAPROC ) THEN
                     !
@@ -2090,6 +2105,9 @@ CONTAINS
 
                   END IF
                 END DO
+#ifdef W3_KOKKOS
+                END IF
+#endif
                 !
 #ifdef W3_MPI
                 IF ( NRQSG1 .GT. 0 ) THEN
@@ -2201,6 +2219,12 @@ CONTAINS
             ! 3.6.4 Intra-spectral part 2
             !
             IF ( FLCTH .OR. FLCK ) THEN
+#ifdef W3_KOKKOS
+              ! ww3-gpu: part 2 of W3KTP3 on Kokkos under WW_KOKKOS_KTP3=1.
+              IF ( KOKKOS_KTP3 ) THEN
+                CALL W3KOKKOS_KTP3 ( FACTH, FACK, NTLOC-ITLOCH )
+              ELSE
+#endif
               DO ITLOC=ITLOCH+1, NTLOC
                 !
 #ifdef W3_OMPG
@@ -2283,6 +2307,9 @@ CONTAINS
 #endif
                 !
               END DO
+#ifdef W3_KOKKOS
+              END IF
+#endif
             END IF
 #ifdef W3_DEBUGCOH
             CALL ALL_VA_INTEGRAL_PRINT(IMOD, "After intraspectral adv.", 1)
