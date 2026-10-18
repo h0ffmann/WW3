@@ -12,13 +12,17 @@
 !> It calls the Fortran W3CPRT whole, after a host read of VA, when a sea point
 !> has a NaN depth (W3CPRT stops there, w3iosfmd.F90:270-274) or a spectrum
 !> the translation cannot take (PTMEAN's out-of-bounds read, cprt_c.hpp).
+!> Each such call goes through KOKKOS_FALLBACK (PATCH.md section 24): it stops
+!> under WW_KOKKOS_STRICT=1, otherwise it counts one CPRT call left on the
+!> Fortran in the line the shim prints at exit.
 !> Opt-in: WW_KOKKOS_CPRT=1; WW_KOKKOS_ALL does not turn it on.
 !>
 !> SPDX-License-Identifier: LGPL-3.0-or-later
 !/ ------------------------------------------------------------------- /
 MODULE W3KOKKOS_CPRTMD
-  USE ISO_C_BINDING, ONLY: C_INT, C_FLOAT
-  USE W3KOKKOSMD, ONLY: KOKKOS_PART, W3KOKKOS_REGISTER
+  USE ISO_C_BINDING, ONLY: C_INT, C_FLOAT, C_NULL_CHAR
+  USE W3KOKKOSMD, ONLY: KOKKOS_PART, W3KOKKOS_REGISTER, KOKKOS_FALLBACK, &
+       WW_KOKKOS_FALLBACK_SLOT
   IMPLICIT NONE
   PRIVATE
   PUBLIC :: KOKKOS_CPRT, W3KOKKOS_CPRT, W3KOKKOS_CPRT_SETUP
@@ -61,6 +65,7 @@ CONTAINS
     IMPLICIT NONE
     INTEGER, INTENT(IN)     :: IMOD
     LOGICAL                 :: OK
+    INTEGER(C_INT)          :: SLOT
     IF ( IMOD < 1 ) RETURN
     OK = .FALSE.
 #ifdef W3_SHRD
@@ -71,6 +76,9 @@ CONTAINS
 #endif
     KOKKOS_CPRT = KOKKOS_PART ( 'CPRT', OK )
     CALL W3KOKKOS_REGISTER ( 'CPRT', KOKKOS_CPRT )
+    ! The counter made here, so the line at exit shows CPRT=0 when no output
+    ! time fell back.
+    IF ( KOKKOS_CPRT ) SLOT = WW_KOKKOS_FALLBACK_SLOT ( 'CPRT'//C_NULL_CHAR )
   END SUBROUTINE W3KOKKOS_CPRT_SETUP
   !/ ------------------------------------------------------------------- /
   !> CALL W3CPRT ( IMOD ) of W3WAVE, on Kokkos, or the Fortran W3CPRT after a
@@ -96,7 +104,7 @@ CONTAINS
     INTEGER(C_INT)          :: IPAR(NIPAR), IERR, FINSIZ, NXPFULL,       &
          FALLBACK
     REAL(C_FLOAT)           :: RPAR(NRPAR)
-    LOGICAL                 :: FORT
+    LOGICAL                 :: FORT, NANDW
     !
 !$  IF ( OMP_IN_PARALLEL() ) THEN
 !$    WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3KOKKOS_CPRTMD : '// &
@@ -114,6 +122,7 @@ CONTAINS
       IF ( MAPSTA(IY,IX) .LT. 0 ) CYCLE
       IF ( DW(ISEA) .NE. DW(ISEA) ) FORT = .TRUE.
     END DO
+    NANDW = FORT
     !
     ! The shapes the C side reads (cprt_c.hpp).
     IF ( SIZE(CG,1).NE.NK+2 .OR. SIZE(WN,1).NE.NK+2 .OR.                 &
@@ -156,6 +165,14 @@ CONTAINS
     END IF
     !
     IF ( FORT ) THEN
+      IF ( NANDW ) THEN
+        CALL KOKKOS_FALLBACK ( 'CPRT', 'A SEA POINT HAS A NAN DEPTH, '//  &
+             'WHERE THE FORTRAN W3CPRT WRITES ITS LINES AND STOPS' )
+      ELSE
+        CALL KOKKOS_FALLBACK ( 'CPRT', 'A SPECTRUM PTMEAN CANNOT TAKE '// &
+             '(ITS OUT-OF-BOUNDS READ OF THE FORTRAN), SO W3CPRT RUNS '//  &
+             'ON THE FORTRAN' )
+      END IF
       CALL W3KOKKOS_VA_HOST_READ
       CALL W3CPRT ( IMOD )
       RETURN
