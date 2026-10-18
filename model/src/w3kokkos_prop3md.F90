@@ -17,12 +17,12 @@
 !> SPDX-License-Identifier: LGPL-3.0-or-later
 !/ ------------------------------------------------------------------- /
 MODULE W3KOKKOS_PROP3MD
-  USE ISO_C_BINDING, ONLY: C_INT, C_FLOAT
+  USE ISO_C_BINDING, ONLY: C_INT, C_FLOAT, C_DOUBLE
   USE W3KOKKOSMD, ONLY: KOKKOS_PART, W3KOKKOS_REGISTER
   IMPLICIT NONE
   PRIVATE
   PUBLIC :: KOKKOS_XYP3, KOKKOS_KTP3, W3KOKKOS_XYP3, W3KOKKOS_KTP3,      &
-       W3KOKKOS_PROP3_SETUP
+       W3KOKKOS_XYPUG, W3KOKKOS_PROP3_SETUP
   !
   !> WW_KOKKOS_XYP3=1, WW_KOKKOS_KTP3=1 on a grid the translation covers
   !> (W3KOKKOS_PROP3_SETUP).
@@ -100,6 +100,23 @@ MODULE W3KOKKOS_PROP3MD
            MAPWN2(*), JSEA(*), ISEA(*)
       REAL(C_FLOAT), INTENT(INOUT) :: VA(*), CFLTHMAX(*), CFLKMAX(*)
     END FUNCTION WW_KTP3_BATCH_VA
+    ! kokkos/src/fortran_iface/xypug_c.hpp (PATCH.md section 30).
+    INTEGER(C_INT) FUNCTION WW_XYPUG_BATCH_VA ( IGRID, IPAR, NIPAR,     &
+         RPAR, NRPAR, MAPSF, MAPSTA, CLATS, ECOS, ESIN, CG, CX, CY,      &
+         TRIGP, IEN, SI, IOBP, IOBPD, IOBDP, IOBPA, ISBPI, BBPI0, BBPIN, &
+         ON, ITER, VA, NSPEC, NSEALM )                                   &
+         BIND(C, NAME='ww_xypug_batch_va')
+      IMPORT :: C_INT, C_FLOAT, C_DOUBLE
+      INTEGER(C_INT), VALUE        :: IGRID, NIPAR, NRPAR, NSPEC, NSEALM
+      INTEGER(C_INT), INTENT(IN)   :: IPAR(*), MAPSF(*), MAPSTA(*),     &
+           TRIGP(*), IOBP(*), IOBPD(*), IOBDP(*), IOBPA(*), ISBPI(*),    &
+           ON(*)
+      REAL(C_FLOAT), INTENT(IN)    :: RPAR(*), CLATS(*), ECOS(*),       &
+           ESIN(*), CG(*), CX(*), CY(*), BBPI0(*), BBPIN(*)
+      REAL(C_DOUBLE), INTENT(IN)   :: IEN(*), SI(*)
+      INTEGER(C_INT), INTENT(INOUT):: ITER(*)
+      REAL(C_FLOAT), INTENT(INOUT) :: VA(*)
+    END FUNCTION WW_XYPUG_BATCH_VA
   END INTERFACE
   !
 CONTAINS
@@ -107,27 +124,42 @@ CONTAINS
   !> The flags. XYP3 needs W3_SHRD (the W3GATH/W3SCAT it replaces are the
   !> shared-memory ones) and a grid that is not tripole; both need PR3 with UQ
   !> and a regular or curvilinear grid, and none of PDLIB, MGP, MGG (moving grid)
-  !> or REFRX, which the translation does not cover.
+  !> or REFRX, which the translation does not cover. On an unstructured grid
+  !> without PDLIB (PATCH.md section 30) KTP3 is covered as on a regular grid,
+  !> and XYP3 is W3XYPUG with the explicit N scheme: FSN, not FSPSI, FSFCT or
+  !> FSNIMP, and not REF1 (W3XYPFSN2's reflection branch). W3IOGR ('READ')
+  !> has filled MPARS(IMOD)%SCHMS before W3INIT calls this set-up.
   SUBROUTINE W3KOKKOS_PROP3_SETUP ( IMOD )
 #if defined(W3_PR3) && defined(W3_UQ)
-    USE W3GDATMD, ONLY: GRIDS, RLGTYPE, CLGTYPE, ICLOSE_TRPL
+    USE W3GDATMD, ONLY: GRIDS, MPARS, RLGTYPE, CLGTYPE, UNGTYPE,         &
+         ICLOSE_TRPL
 #endif
     IMPLICIT NONE
     INTEGER, INTENT(IN)     :: IMOD
 #if defined(W3_PR3) && defined(W3_UQ)
-    LOGICAL                 :: OKG, OKX, OKK
+    LOGICAL                 :: OKG, OKX, OKK, OKU, OKXU
 #endif
     IF ( IMOD < 1 ) RETURN
 #if defined(W3_PR3) && defined(W3_UQ)
     OKG = GRIDS(IMOD)%GTYPE .EQ. RLGTYPE .OR. GRIDS(IMOD)%GTYPE .EQ. CLGTYPE
+    OKU = GRIDS(IMOD)%GTYPE .EQ. UNGTYPE
 #if defined(W3_PDLIB) || defined(W3_MGP) || defined(W3_MGG)
     OKG = .FALSE.
+    OKU = .FALSE.
 #endif
     OKX = OKG .AND. GRIDS(IMOD)%ICLOSE .NE. ICLOSE_TRPL
+    OKXU = .FALSE.
+    IF ( OKU ) OKXU = MPARS(IMOD)%SCHMS%FSN .AND.                        &
+         .NOT. ( MPARS(IMOD)%SCHMS%FSPSI .OR. MPARS(IMOD)%SCHMS%FSFCT .OR. &
+         MPARS(IMOD)%SCHMS%FSNIMP )
+#ifdef W3_REF1
+    OKXU = .FALSE.
+#endif
+    OKX = OKX .OR. OKXU
 #ifndef W3_SHRD
     OKX = .FALSE.
 #endif
-    OKK = OKG
+    OKK = OKG .OR. OKU
 #ifdef W3_REFRX
     OKK = .FALSE.
 #endif
@@ -226,15 +258,108 @@ CONTAINS
 #endif
   END SUBROUTINE W3KOKKOS_XYP3
   !/ ------------------------------------------------------------------- /
+  !> W3WAVE section 3.6.3 on an unstructured grid on Kokkos (PATCH.md section
+  !> 30): for every ISPEC with IAPPRO(ISPEC) == IAPROC, W3GATH, W3XYPUG
+  !> (ISPEC, FACX, FACY, DTG, FIELD, VGX, VGY, LCALC) with the N scheme
+  !> W3XYPFSN2, and W3SCAT, W3_SHRD. W3WAVE passes FACX as FACY and UGDTUPDATE
+  !> as LCALC. SETDEPTH, which W3XYPUG calls once per component, is called once
+  !> here: it sets IOBDP from DW and DMIN, which the ISPEC loop does not write.
+  SUBROUTINE W3KOKKOS_XYPUG ( FACX, FACY, DTG, LCALC )
+#if defined(W3_PR3) && defined(W3_UQ)
+    USE W3GDATMD, ONLY: NX, NSEA, NK, NTH, NSPEC, MAPSF, MAPSTA, CLATS, &
+         ECOS, ESIN, NTRI, TRIGP, IEN, SI, IOBP, IOBPD, IOBDP, IOBPA,    &
+         FSN, FSBCCFL, GTYPE, UNGTYPE, IGRID
+    USE W3WDATMD, ONLY: TIME, VA
+    USE W3ADATMD, ONLY: CG, CX, CY, IAPPRO, ITER
+    USE W3IDATMD, ONLY: FLCUR
+    USE W3ODATMD, ONLY: NDSE, IAPROC, FLBPI, NBI, TBPI0, TBPIN, ISBPI,  &
+         BBPI0, BBPIN
+    USE W3PROFSMD, ONLY: SETDEPTH
+    USE W3TIMEMD, ONLY: DSEC21
+    USE W3SERVMD, ONLY: EXTCDE
+#endif
+    IMPLICIT NONE
+    REAL, INTENT(IN)        :: FACX, FACY, DTG
+    LOGICAL, INTENT(IN)     :: LCALC
+#if defined(W3_PR3) && defined(W3_UQ)
+    REAL(C_FLOAT)           :: RPAR(5), RDUM(1)
+    INTEGER(C_INT)          :: IPAR(11), IDUM(1), IERR
+    INTEGER(C_INT), ALLOCATABLE, SAVE :: ON(:), KOBP(:), KOBPD(:,:),     &
+         KOBDP(:), KOBPA(:)
+    INTEGER                 :: ISP
+    REAL                    :: RD1, RD2
+    !
+    ! The set-up checked the grid; a later grid of a multi-grid run may differ.
+    IF ( GTYPE .NE. UNGTYPE .OR. .NOT. FSN .OR.                          &
+         SIZE(MAPSF,1) .NE. NSEA ) THEN
+      WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3KOKKOS_PROP3MD : '// &
+           'W3XYPUG ON KOKKOS NEEDS AN UNSTRUCTURED GRID WITH THE N '//  &
+           'SCHEME (FSN) AND MAPSF WITH NSEA ROWS'
+      CALL EXTCDE ( 1 )
+    END IF
+    IF ( ALLOCATED(ON) ) THEN
+      IF ( SIZE(ON) .NE. NSPEC .OR. SIZE(KOBP) .NE. NX .OR.              &
+           SIZE(KOBPD,1) .NE. NTH )                                      &
+           DEALLOCATE ( ON, KOBP, KOBPD, KOBDP, KOBPA )
+    END IF
+    IF ( .NOT. ALLOCATED(ON) ) ALLOCATE ( ON(NSPEC), KOBP(NX),           &
+         KOBPD(NTH,NX), KOBDP(NX), KOBPA(NX) )
+    DO ISP = 1, NSPEC
+      ON(ISP) = MERGE ( 1_C_INT, 0_C_INT, IAPPRO(ISP) .EQ. IAPROC )
+    END DO
+    ! W3XYPUG calls SETDEPTH only for a component it propagates.
+    IF ( ANY(ON .NE. 0_C_INT) ) CALL SETDEPTH
+    ! INTEGER*2 and INTEGER*1 in W3GDATMD, widened for the C side.
+    KOBP  = INT ( IOBP(1:NX), C_INT )
+    KOBPD = INT ( IOBPD(1:NTH,1:NX), C_INT )
+    KOBDP = INT ( IOBDP(1:NX), C_INT )
+    KOBPA = INT ( IOBPA(1:NX), C_INT )
+    !
+    ! W3XYPUG section 4 (w3profsmd.F90), REAL as there.
+    IF ( FLBPI ) THEN
+      RD1 = DSEC21 ( TBPI0, TIME )
+      RD2 = DSEC21 ( TBPI0, TBPIN )
+    ELSE
+      RD1 = 1.
+      RD2 = 0.
+    END IF
+    RPAR = (/ FACX, FACY, DTG, RD1, RD2 /)
+    IPAR = (/ NX, NTRI, NK, NTH, NSPEC, NSEA, NBI, MERGE(1,0,FLCUR),    &
+         MERGE(1,0,FLBPI), MERGE(1,0,FSBCCFL), MERGE(1,0,LCALC) /)
+    IF ( FLBPI ) THEN
+      IERR = WW_XYPUG_BATCH_VA ( IGRID, IPAR, 11_C_INT, RPAR, 5_C_INT,  &
+           MAPSF, MAPSTA, CLATS(1:NSEA), ECOS, ESIN, CG, CX, CY, TRIGP,  &
+           IEN, SI, KOBP, KOBPD, KOBDP, KOBPA, ISBPI, BBPI0, BBPIN, ON,  &
+           ITER, VA, SIZE(VA,1), UBOUND(VA,2) )
+    ELSE
+      ! ISBPI, BBPI0, BBPIN are not allocated without input boundary points;
+      ! W3XYPFSN2 reads them only under FLBPI.
+      IPAR(7) = 0
+      IDUM = 0
+      RDUM = 0.
+      IERR = WW_XYPUG_BATCH_VA ( IGRID, IPAR, 11_C_INT, RPAR, 5_C_INT,  &
+           MAPSF, MAPSTA, CLATS(1:NSEA), ECOS, ESIN, CG, CX, CY, TRIGP,  &
+           IEN, SI, KOBP, KOBPD, KOBDP, KOBPA, IDUM, RDUM, RDUM, ON,     &
+           ITER, VA, SIZE(VA,1), UBOUND(VA,2) )
+    END IF
+    CALL PROP3_CHECK ( 'W3XYPUG', IERR )
+#else
+    CALL PROP3_CHECK ( 'W3XYPUG', 5_C_INT )
+#endif
+  END SUBROUTINE W3KOKKOS_XYPUG
+  !/ ------------------------------------------------------------------- /
   !> W3WAVE section 3.6.2 or 3.6.4 on Kokkos: NTIMES sub-steps of W3KTP3
   !> (ISEA, FACTH, FACK, CTHG0S(ISEA), CG(:,ISEA), WN(:,ISEA), DEPTH,
   !> DDDX(IY,IX), ..., VA(:,JSEA), CFLTHMAX(JSEA), CFLKMAX(JSEA)) on every JSEA
-  !> with MAPSTA(IY,IX) == 1, the arguments packed as W3WAVE passes them.
+  !> with MAPSTA(IY,IX) == 1, the arguments packed as W3WAVE passes them. On an
+  !> unstructured grid (no PDLIB, so IXrel = IX) both sections first skip a
+  !> point with IOBP(ISEA) /= 1 (w3wavemd.F90 sections 3.6.2 and 3.6.4).
   SUBROUTINE W3KOKKOS_KTP3 ( FACTH, FACK, NTIMES )
 #if defined(W3_PR3) && defined(W3_UQ)
     USE W3GDATMD, ONLY: NK, NK2, NTH, NSPEC, NSEA, NSEAL, SIG, DSIP,    &
          ECOS, ESIN, EC2, ESC, ES2, FACHFA, MAPWN, FLCTH, FLCK, CTMAX,   &
-         DMIN, MAPSF, MAPSTA, CTHG0S, GTYPE, RLGTYPE, CLGTYPE, IGRID
+         DMIN, MAPSF, MAPSTA, CTHG0S, GTYPE, RLGTYPE, CLGTYPE, UNGTYPE,  &
+         IOBP, IGRID
     USE W3WDATMD, ONLY: VA
     USE W3ADATMD, ONLY: MAPTH2, MAPWN2, ITSTEP, CG, WN, DW, CX, CY,     &
          DDDX, DDDY, DCXDX, DCXDY, DCYDX, DCYDY, CFLTHMAX, CFLKMAX
@@ -254,9 +379,11 @@ CONTAINS
     INTEGER                 :: JSEA, ISEA, IX, IY, NP
     !
     IF ( NTIMES .LT. 1 ) RETURN
-    IF ( GTYPE .NE. RLGTYPE .AND. GTYPE .NE. CLGTYPE ) THEN
+    IF ( GTYPE .NE. RLGTYPE .AND. GTYPE .NE. CLGTYPE .AND.               &
+         GTYPE .NE. UNGTYPE ) THEN
       WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3KOKKOS_PROP3MD : '// &
-           'W3KTP3 ON KOKKOS NEEDS A REGULAR OR CURVILINEAR GRID'
+           'W3KTP3 ON KOKKOS NEEDS A REGULAR, CURVILINEAR OR '//         &
+           'UNSTRUCTURED GRID'
       CALL EXTCDE ( 1 )
     END IF
     IF ( ALLOCATED(PJSEA) ) THEN
@@ -269,6 +396,9 @@ CONTAINS
       CALL INIT_GET_ISEA(ISEA, JSEA)
       IX     = MAPSF(ISEA,1)
       IY     = MAPSF(ISEA,2)
+      IF ( GTYPE .EQ. UNGTYPE ) THEN
+        IF ( IOBP(ISEA) .NE. 1 ) CYCLE
+      END IF
       IF ( MAPSTA(IY,IX) .EQ. 1 ) THEN
         NP = NP + 1
         PJSEA(NP) = JSEA
