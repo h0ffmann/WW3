@@ -829,7 +829,12 @@ CONTAINS
 #else
     ! WW_KOKKOS_ALL=1 leaves W3SRCE on the Fortran here; WW_KOKKOS_SRCE=1 stops.
     IF ( KOKKOS_SRCE ) THEN
-      IF ( KOKKOS_FLAG('SRCE') == 2 ) KOKKOS_SRCE = .FALSE.
+      IF ( KOKKOS_FLAG('SRCE') == 2 ) THEN
+        KOKKOS_SRCE = .FALSE.
+        ! Stops under WW_KOKKOS_STRICT=1, else counts (PATCH.md section 24).
+        CALL KOKKOS_FALLBACK ( 'SRCE', 'WW_KOKKOS_ALL=1 ASKS FOR IT, BUT '// &
+             'IT NEEDS THE ST4 AND NL1 SWITCHES' )
+      END IF
     END IF
     IF ( KOKKOS_SRCE ) THEN
       WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3INIT : '//           &
