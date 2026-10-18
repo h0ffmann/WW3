@@ -215,6 +215,12 @@ CONTAINS
     USE W3ADATMD, ONLY: W3SETA
     USE W3ODATMD, ONLY: W3SETO, NOTYPE
     USE W3IOPOMD, ONLY: W3IOPE
+#ifdef W3_KOKKOS
+    USE W3KOKKOS_RESIDENTMD, ONLY: W3KOKKOS_VA_HOST_READ
+#ifndef W3_MPI
+    USE W3KOKKOS_PNTMD, ONLY: KOKKOS_IOPE, W3KOKKOS_IOPE_READ
+#endif
+#endif
     USE W3WAVEMD, ONLY: W3WAVE
     USE W3SERVMD, ONLY: EXTCDE, WWTIME
 #ifdef W3_S
@@ -1356,6 +1362,12 @@ CONTAINS
                 IF ( FLG_O2 ) THEN
                   CALL W3SETO ( I, MDSE, MDST )
                   !
+#if defined(W3_KOKKOS) && defined(W3_MPI)
+                  ! ww3-gpu: the requests of W3MPIP send columns of VA, so VA of grid I
+                  ! (IGRID and VA are still those of W3WAVE ( I )) current on the host
+                  ! first, as W3WAVE's own output block does under MPI (PATCH.md section 24).
+                  CALL W3KOKKOS_VA_HOST_READ
+#endif
 #ifdef W3_MPI
                   IF ( NRQPO.NE.0 ) CALL MPI_STARTALL      &
                        ( NRQPO, IRQPO1, IERR_MPI )
@@ -1364,6 +1376,15 @@ CONTAINS
                   IF ( NOPTS.NE.0 .AND. IAPROC.EQ.NAPPNT ) THEN
                     CALL W3SETG ( I, MDSE, MDST )
                     CALL W3SETA ( I, MDSE, MDST )
+#if defined(W3_KOKKOS) && !defined(W3_MPI)
+                    ! ww3-gpu: as before W3WAVE's own W3IOPE: under WW_KOKKOS_IOPE=1 only the
+                    ! columns W3IOPE reads come back from the device (PATCH.md section 24).
+                    IF ( KOKKOS_IOPE ) THEN
+                      CALL W3KOKKOS_IOPE_READ
+                    ELSE
+                      CALL W3KOKKOS_VA_HOST_READ
+                    END IF
+#endif
                     CALL W3IOPE ( VA )
                   END IF
                   !
