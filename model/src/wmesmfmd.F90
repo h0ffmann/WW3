@@ -192,6 +192,9 @@ module WMESMFMD
   use W3SRC4MD, only: W3SPR4
 #endif
   use W3IOGOMD, only: W3OUTG
+#ifdef W3_KOKKOS
+  use W3KOKKOS_RESIDENTMD, only: W3KOKKOS_VA_HOST_READ
+#endif
 #ifdef W3_SCRIP
   use WMSCRPMD, only: get_scrip_info_structured
 #endif
@@ -2909,6 +2912,12 @@ contains
     call w3seti ( expGridID, mdse, mdst )
     call w3seto ( expGridID, mdse, mdst )
     call wmsetm ( expGridID, mdse, mdst )
+#ifdef W3_KOKKOS
+    ! ww3-gpu: W3WAVE returns with the resident VA possibly newer on the device
+    ! (PATCH.md section 29); every export below reads the whole field of the
+    ! export grid, CalcCharnk and CalcRoughl included, so one read here.
+    call W3KOKKOS_VA_HOST_READ
+#endif
 #ifdef USE_W3OUTG_FOR_EXPORT
     if ( natGridIsLocal ) call w3outg( va, flpart, floutg, floutg2 )
 #endif
