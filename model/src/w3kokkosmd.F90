@@ -96,12 +96,12 @@ MODULE W3KOKKOSMD
   !     The same applies to any array whose lower bound is not 1; CG1 inside
   !     W3SRCE is declared CG1(NK) and is safe.
   !
-  !     Three limits of phase 1, all from the shim holding one context:
+  !     Three properties of the shim's contexts:
   !
-  !       a) One spectral grid per process. WW_SNL1_INIT replaces the previous
-  !          grid's tables rather than adding a second grid, so a ww3_multi run
-  !          must not call it once per grid -- with different NK*NTH the later
-  !          grids would read out of bounds. The caller must refuse that case.
+  !       a) One context per grid. The shim keeps its tables in a map keyed by
+  !          the grid index (snl1_shim.cpp, contexts()); W3INIT calls
+  !          WW_SNL1_INIT with IMOD, so each grid of a ww3_multi run gets its
+  !          own NK*NTH tables and adding a grid moves no other grid's context.
   !       b) One caller at a time. Nothing in the shim is locked, so concurrent
   !          WW_SNL1 calls are undefined behaviour. W3SRCE is called from inside
   !          !$OMP PARALLEL regions under W3_OMPG and W3_OMP0, so a phase-1
