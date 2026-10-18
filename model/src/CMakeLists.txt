@@ -34,7 +34,8 @@ if(WW_KOKKOS)
     message(FATAL_ERROR "The Kokkos ST4 path does not support FLX5: drop KOKKOS or FLX5")
   endif()
   # 0.10 is the first ABI with the partial write of ww3_multi's exchanges
-  # (ww_va_host_wrote_cols); 0.9 added the zeroed columns repeated on the resident VA
+  # (ww_va_host_wrote_cols) and W3CPRT on the resident VA (ww_cprt_va,
+  # ww_cprt_fetch); 0.9 added the zeroed columns repeated on the resident VA
   # (ww_va_host_update, ww_va_device_zero_cols); 0.8 added the partial read
   # (ww_va_host_read_cols);
   # 0.7 added W3OUTG on the resident VA (ww_outg_va); 0.6 added the
