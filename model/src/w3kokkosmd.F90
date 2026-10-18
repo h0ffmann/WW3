@@ -1056,6 +1056,11 @@ MODULE W3KOKKOSMD
        IMPORT :: C_INT, C_CHAR
        CHARACTER(KIND=C_CHAR), INTENT(IN) :: NAME(*)
      END FUNCTION WW_KOKKOS_FLAG
+     !> 0 WW_KOKKOS_PRESET unset, 1 a preset of presets.txt, -1 another name.
+     INTEGER(C_INT) FUNCTION WW_KOKKOS_PRESET_STATUS ( )                 &
+          BIND(C, NAME='ww_kokkos_preset_status')
+       IMPORT :: C_INT
+     END FUNCTION WW_KOKKOS_PRESET_STATUS
      !> 1 when WW_KOKKOS_STRICT=1, read once by the shim.
      INTEGER(C_INT) FUNCTION WW_KOKKOS_STRICT ( )                        &
           BIND(C, NAME='ww_kokkos_strict')
@@ -1163,11 +1168,24 @@ CONTAINS
   !> rather than crossing the C boundary for every sea point.
   !>
   SUBROUTINE W3KOKKOS_SETUP
+#ifdef W3_KOKKOS
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+#endif
     IMPLICIT NONE
 #ifdef W3_KOKKOS
+    CHARACTER(LEN=64)       :: PNAME
     !
-    ! WW_KOKKOS_STRICT (PATCH.md section 24), read once by the shim.
+    ! WW_KOKKOS_PRESET and WW_KOKKOS_STRICT (PATCH.md sections 24 and 25),
+    ! read once by the shim; the preset's parts reach every flag below.
     KOKKOS_STRICT = ( WW_KOKKOS_STRICT() == 1_C_INT )
+    IF ( WW_KOKKOS_PRESET_STATUS() < 0_C_INT ) THEN
+      CALL GET_ENVIRONMENT_VARIABLE ( 'WW_KOKKOS_PRESET', PNAME )
+      WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3KOKKOSMD : '//     &
+           'WW_KOKKOS_PRESET='//TRIM(PNAME)//' IS NOT A PRESET OF '//      &
+           'kokkos/src/fortran_iface/presets.txt'
+      CALL EXTCDE ( 1 )
+    END IF
 #endif
     !
     KOKKOS_SNL1 = ( WW_SNL1_ENABLED() == 1_C_INT )
@@ -1289,6 +1307,10 @@ CONTAINS
     INTEGER, INTENT(IN)     :: NDS
     CHARACTER(LEN=4096)     :: LINE
     INTEGER                 :: NON, NALL, I
+    IF ( WW_KOKKOS_PRESET_STATUS() == 1_C_INT ) THEN
+      CALL GET_ENVIRONMENT_VARIABLE ( 'WW_KOKKOS_PRESET', LINE )
+      WRITE (NDS,'(A)') '  Kokkos preset (WW_KOKKOS_PRESET): '//TRIM(LINE)
+    END IF
     LINE = ''
     NON = 0
     NALL = 0
