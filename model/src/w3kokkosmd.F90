@@ -3287,8 +3287,11 @@ CONTAINS
   !> Fortran W3MAP3 on other grids, where MAPCXY need not be allocated.
   SUBROUTINE W3KOKKOS_MAP3
     USE W3GDATMD, ONLY: NK, NTH, NX, NY, NSEA, MAPSTA, MAPSF, GTYPE
+#ifdef W3KOKKOS_HAS_PR3
+    ! W3ADATMD declares these under W3_PR3 only (w3adatmd.F90:520-525, :648-653).
     USE W3ADATMD, ONLY: NMX0, NMX1, NMX2, NMY0, NMY1, NMY2, NACT,      &
          NCENT, MAPX2, MAPY2, MAPAXY, MAPCXY, MAPTH2, MAPWN2
+#endif
     IMPLICIT NONE
     INTEGER(C_INT)          :: IERR, COUNTS(8)
 #ifdef W3KOKKOS_HAS_PR3
@@ -3302,6 +3305,7 @@ CONTAINS
     IERR = 5_C_INT
 #endif
     CALL WAVE_CHECK ( 'W3MAP3', IERR )
+#ifdef W3KOKKOS_HAS_PR3
     NMX0  = COUNTS(1)
     NMX1  = COUNTS(2)
     NMX2  = COUNTS(3)
@@ -3310,13 +3314,17 @@ CONTAINS
     NMY2  = COUNTS(6)
     NACT  = COUNTS(7)
     NCENT = COUNTS(8)
+#endif
   END SUBROUTINE W3KOKKOS_MAP3
   !/ ------------------------------------------------------------------- /
   !> W3MAPT (w3pro3md.F90) on Kokkos. MAPTRN is LOGICAL in WW3 and 0/1 in the
   !> shim; cells that are not sea points keep their value.
   SUBROUTINE W3KOKKOS_MAPT
     USE W3GDATMD, ONLY: NX, NY, NSEA, MAPSF
-    USE W3ADATMD, ONLY: ATRNX, ATRNY, MAPTRN
+    USE W3ADATMD, ONLY: ATRNX, ATRNY
+#ifdef W3KOKKOS_HAS_PR3
+    USE W3ADATMD, ONLY: MAPTRN
+#endif
     IMPLICIT NONE
     INTEGER(C_INT)              :: IERR
     INTEGER(C_INT), ALLOCATABLE :: TRN(:)
