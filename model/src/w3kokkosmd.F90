@@ -1707,7 +1707,18 @@ CONTAINS
     USE W3GDATMD, ONLY: NK, NTH, NSPEC, SIG, DDEN, ECOS, ESIN, MAPWN,  &
          DMIN, DTMAX, DTMIN, FACTI1, FACTI2, FACHFA, FACP, XFLT, XREL,  &
          FHMAX, FFXFM, FFXPM, FFXFA, ICESCALES, IICEDISP, IC_NUMERICS,  &
-         SLNC1, FSPM, FSHF, SBTC1, SDBC1, SDBC2, FDONLY, IQTPE
+         IQTPE
+    ! W3GDATMD declares these only under their switch; without it the packet
+    ! keeps 0 and the switch gate below leaves W3SRCE to the Fortran.
+#ifdef W3_LN1
+    USE W3GDATMD, ONLY: SLNC1, FSPM, FSHF
+#endif
+#ifdef W3_BT1
+    USE W3GDATMD, ONLY: SBTC1
+#endif
+#ifdef W3_DB1
+    USE W3GDATMD, ONLY: SDBC1, SDBC2, FDONLY
+#endif
     IMPLICIT NONE
     INTEGER, INTENT(IN)     :: IMOD
     REAL(C_FLOAT)           :: RPAR(NRSPAR)
@@ -1732,19 +1743,27 @@ CONTAINS
     DO J = 1, 4
       RPAR(RS_ICESCALES+J) = ICESCALES(J)
     END DO
+#ifdef W3_LN1
     RPAR(RS_SLNC1+1)  = SLNC1
     RPAR(RS_FSPM+1)   = FSPM
     RPAR(RS_FSHF+1)   = FSHF
+#endif
+#ifdef W3_BT1
     RPAR(RS_SBTC1+1)  = SBTC1
+#endif
+#ifdef W3_DB1
     RPAR(RS_SDBC1+1)  = SDBC1
     RPAR(RS_SDBC2+1)  = SDBC2
+#endif
     IPAR(IS_NK+1)     = NK
     IPAR(IS_NTH+1)    = NTH
     IPAR(IS_NSPEC+1)  = NSPEC
     IPAR(IS_IQTPE+1)  = IQTPE
     IPAR(IS_IICEDISP+1)    = MERGE(1, 0, IICEDISP)
     IPAR(IS_IC_NUMERICS+1) = MERGE(1, 0, IC_NUMERICS)
+#ifdef W3_DB1
     IPAR(IS_FDONLY+1)      = MERGE(1, 0, FDONLY)
+#endif
     ! The kernel translates W3SRCE as switch_lab_shrd compiles it: these six
     ! switches on, none of the other switches W3SRCE, W3SLN1, W3SBT1, W3SDB1
     ! branch on (W3_OMPG changes no arithmetic and is allowed).
