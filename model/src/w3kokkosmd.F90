@@ -138,6 +138,11 @@ MODULE W3KOKKOSMD
   !> parity: measured on CPU (v, WW_KOKKOS_ALL=1 2026-10-16, byte-identical, smoke 2161
   !> and full 230100 spectra); GPU ⚠ logf/tanhf/sincosf from libdevice.
   LOGICAL :: KOKKOS_SRCE = .FALSE.
+  !> WW_KOKKOS_STRICT=1 (PATCH.md section 24): a part asked on Kokkos that would
+  !> run the Fortran stops the model (KOKKOS_FALLBACK). Set by W3KOKKOS_SETUP.
+  LOGICAL, SAVE :: KOKKOS_STRICT = .FALSE.
+  !> The shim's counter of W3SRCE steps left on the Fortran by W3KOKKOS_SRCE_STEP.
+  INTEGER(C_INT), SAVE :: KOKKOS_SRCE_SLOT = -1_C_INT
   !> W3WAVE's support routines, WW_KOKKOS_<NAME>=1 (W3KOKKOS_SETUP); each stays
   !> off on a switch file its translation does not cover.
   !> GATH, SCAT: measured on CPU (v, full 2026-10-16, 13824 calls each, byte-identical);
@@ -1051,6 +1056,23 @@ MODULE W3KOKKOSMD
        IMPORT :: C_INT, C_CHAR
        CHARACTER(KIND=C_CHAR), INTENT(IN) :: NAME(*)
      END FUNCTION WW_KOKKOS_FLAG
+     !> 1 when WW_KOKKOS_STRICT=1, read once by the shim.
+     INTEGER(C_INT) FUNCTION WW_KOKKOS_STRICT ( )                        &
+          BIND(C, NAME='ww_kokkos_strict')
+       IMPORT :: C_INT
+     END FUNCTION WW_KOKKOS_STRICT
+     !> The fallback counter of a part, printed at exit; -1 on a bad name.
+     INTEGER(C_INT) FUNCTION WW_KOKKOS_FALLBACK_SLOT ( PART )            &
+          BIND(C, NAME='ww_kokkos_fallback_slot')
+       IMPORT :: C_INT, C_CHAR
+       CHARACTER(KIND=C_CHAR), INTENT(IN) :: PART(*)
+     END FUNCTION WW_KOKKOS_FALLBACK_SLOT
+     !> One more call of the slot's part on the Fortran.
+     SUBROUTINE WW_KOKKOS_FALLBACK_ADD ( SLOT )                          &
+          BIND(C, NAME='ww_kokkos_fallback_add')
+       IMPORT :: C_INT
+       INTEGER(C_INT), VALUE :: SLOT
+     END SUBROUTINE WW_KOKKOS_FALLBACK_ADD
      INTEGER(C_INT) FUNCTION WW_WAVE_GATH ( ISPEC, NSPEC, NSEA, NCOL,     &
           MSEA, NX, NY, VA, MAPSF, FIELD ) BIND(C, NAME='ww_wave_gath')
        IMPORT :: C_INT, C_FLOAT
@@ -1142,6 +1164,11 @@ CONTAINS
   !>
   SUBROUTINE W3KOKKOS_SETUP
     IMPLICIT NONE
+#ifdef W3_KOKKOS
+    !
+    ! WW_KOKKOS_STRICT (PATCH.md section 24), read once by the shim.
+    KOKKOS_STRICT = ( WW_KOKKOS_STRICT() == 1_C_INT )
+#endif
     !
     KOKKOS_SNL1 = ( WW_SNL1_ENABLED() == 1_C_INT )
     KOKKOS_SDS4 = ( WW_ST4_ENABLED(1_C_INT) == 1_C_INT )
@@ -1200,7 +1227,28 @@ CONTAINS
            'NOT COVER THIS SWITCH FILE'
       CALL EXTCDE ( 1 )
     END IF
+    IF ( F == 2 .AND. .NOT. SUPPORTED ) CALL KOKKOS_FALLBACK ( PART,      &
+         'WW_KOKKOS_ALL=1 ASKS FOR IT, BUT ITS KOKKOS TRANSLATION DOES '// &
+         'NOT COVER THIS SWITCH FILE' )
   END FUNCTION KOKKOS_PART
+  !/ ------------------------------------------------------------------- /
+  !> Part PART was asked on Kokkos and runs the Fortran for the REASON given.
+  !> With WW_KOKKOS_STRICT=1 the model stops on a line naming both; without
+  !> it the shim counts one call for the line it prints at exit. Called at
+  !> set-up, and per step only on W3KOKKOS_SRCE_STEP's fallback branch.
+  SUBROUTINE KOKKOS_FALLBACK ( PART, REASON )
+    USE W3ODATMD, ONLY: NDSE
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    CHARACTER(LEN=*), INTENT(IN) :: PART, REASON
+    IF ( KOKKOS_STRICT ) THEN
+      WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3KOKKOSMD : '//     &
+           'WW_KOKKOS_STRICT=1 AND PART '//PART//' WOULD RUN ON THE '//    &
+           'FORTRAN: '//REASON
+      CALL EXTCDE ( 1 )
+    END IF
+    CALL WW_KOKKOS_FALLBACK_ADD ( WW_KOKKOS_FALLBACK_SLOT ( PART//C_NULL_CHAR ) )
+  END SUBROUTINE KOKKOS_FALLBACK
   !/ ------------------------------------------------------------------- /
   !> Record that part PART (WW_KOKKOS_<PART>) exists in this build and whether
   !> it runs on Kokkos (ON), for the parts line of W3KOKKOS_REPORT. Called by a
@@ -1787,6 +1835,9 @@ CONTAINS
     IF ( IPAR(IS_LAB_SWITCH+1) /= 1 ) THEN
       IF ( KOKKOS_FLAG('SRCE') == 2 ) THEN
         KOKKOS_SRCE = .FALSE.
+        CALL KOKKOS_FALLBACK ( 'SRCE', 'WW_KOKKOS_ALL=1 ASKS FOR IT, BUT '// &
+             'THE SWITCH FILE IS NOT THE ONE ITS KERNEL TRANSLATES '//      &
+             '(switch_lab_shrd''s source terms)' )
         RETURN
       END IF
     END IF
@@ -1794,6 +1845,9 @@ CONTAINS
     CALL SRCE_CHECK ( 'WW_SRCE_INIT', WW_SRCE_INIT ( IMOD, RPAR, NRSPAR, &
          IPAR, NISPAR, SIG(1:NK), DDEN(1:NK), ECOS(1:NSPEC),             &
          ESIN(1:NSPEC), MAPWN(1:NSPEC) ) )
+    ! The counter of W3KOKKOS_SRCE_STEP's fallbacks, made here so the step
+    ! pays one increment and the line at exit shows SRCE=0 when none fell back.
+    KOKKOS_SRCE_SLOT = WW_KOKKOS_FALLBACK_SLOT ( 'SRCE'//C_NULL_CHAR )
     !
   END SUBROUTINE W3KOKKOS_SRCE_SETUP
   !/ ------------------------------------------------------------------- /
@@ -1828,6 +1882,37 @@ CONTAINS
          .NOT. ( INFLAGS2(4) .AND. IICEDISP ) .AND.                      &
          ( IT == 0 .OR. SINTAILPAR(4) > 0.5 )
   END FUNCTION W3KOKKOS_SRCE_ON
+  !/ ------------------------------------------------------------------- /
+  !> W3KOKKOS_SRCE_ON for the step's batch, called once per step outside the
+  !> loop over sea points (w3wavemd.F90): when WW_KOKKOS_SRCE is on and the
+  !> step is left to the Fortran, SRCE_FALLBACK stops (WW_KOKKOS_STRICT=1) or
+  !> counts the step. The per-point W3KOKKOS_SRCE_ON is unchanged.
+  LOGICAL FUNCTION W3KOKKOS_SRCE_STEP ( IT )
+    IMPLICIT NONE
+    INTEGER, INTENT(IN)     :: IT
+    W3KOKKOS_SRCE_STEP = W3KOKKOS_SRCE_ON ( IT )
+    IF ( KOKKOS_SRCE .AND. .NOT. W3KOKKOS_SRCE_STEP ) CALL SRCE_FALLBACK
+  END FUNCTION W3KOKKOS_SRCE_STEP
+  !/ ------------------------------------------------------------------- /
+  !> The fallback branch of W3KOKKOS_SRCE_STEP: name the branch of
+  !> W3KOKKOS_SRCE_ON that sent the step to the Fortran, or count the step.
+  SUBROUTINE SRCE_FALLBACK
+    USE W3GDATMD, ONLY: IQTPE, IICEDISP
+    USE W3IDATMD, ONLY: INFLAGS2
+    IMPLICIT NONE
+    IF ( .NOT. KOKKOS_STRICT ) THEN
+      CALL WW_KOKKOS_FALLBACK_ADD ( KOKKOS_SRCE_SLOT )
+    ELSE IF ( IQTPE <= 0 ) THEN
+      CALL KOKKOS_FALLBACK ( 'SRCE', 'IQTPE <= 0 (GQM), WHICH THE KERNEL '// &
+           'DOES NOT TRANSLATE' )
+    ELSE IF ( INFLAGS2(4) .AND. IICEDISP ) THEN
+      CALL KOKKOS_FALLBACK ( 'SRCE', 'LIU''S ICE DISPERSION (ICE INPUT '//  &
+           'AND IICEDISP), WHICH THE KERNEL DOES NOT TRANSLATE' )
+    ELSE
+      CALL KOKKOS_FALLBACK ( 'SRCE', 'TAUWBUG = 0 (SINTAILPAR(4) <= 0.5) '// &
+           'WITH IT > 0, WHICH NO TRANSLATION CAN REPRODUCE' )
+    END IF
+  END SUBROUTINE SRCE_FALLBACK
   !/ ------------------------------------------------------------------- /
   !> W3SRCE(srce_direct, ...) on Kokkos for one point: the argument list of
   !> W3SRCE as the lab switch reads it (w3srcemd.F90:190-2412). VSIO, VDIO
