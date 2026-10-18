@@ -13,14 +13,19 @@
 !> VA (PATCH.md section 27). When a field the translation leaves to the
 !> Fortran is requested, CALC_U3STOKES (FLOLOC(6,8), (6,12)), SKEWNESS
 !> (FLOLOC(8,7:9)) or CALC_WBT (FLOLOC(2,17)), or a requested 3-D field is not
-!> allocated, it calls the Fortran W3OUTG whole, after a host read of VA. Opt-in: WW_KOKKOS_OUTG=1; WW_KOKKOS_ALL
-!> does not turn it on.
+!> allocated, it calls the Fortran W3OUTG whole, after a host read of VA.
+!> That call goes through KOKKOS_FALLBACK (PATCH.md sections 24 and 31): it
+!> stops under WW_KOKKOS_STRICT=1, otherwise it counts one OUTG call left on
+!> the Fortran in the line the shim prints at exit.
+!> Opt-in: WW_KOKKOS_OUTG=1; WW_KOKKOS_ALL does not turn it on.
 !>
 !> SPDX-License-Identifier: LGPL-3.0-or-later
 !/ ------------------------------------------------------------------- /
 MODULE W3KOKKOS_OUTGMD
-  USE ISO_C_BINDING, ONLY: C_INT, C_FLOAT, C_PTR, C_LOC, C_NULL_PTR
-  USE W3KOKKOSMD, ONLY: KOKKOS_PART, W3KOKKOS_REGISTER
+  USE ISO_C_BINDING, ONLY: C_INT, C_FLOAT, C_PTR, C_LOC, C_NULL_PTR,   &
+       C_NULL_CHAR
+  USE W3KOKKOSMD, ONLY: KOKKOS_PART, W3KOKKOS_REGISTER, KOKKOS_FALLBACK, &
+       WW_KOKKOS_FALLBACK_SLOT
   IMPLICIT NONE
   PRIVATE
   PUBLIC :: KOKKOS_OUTG, W3KOKKOS_OUTG, W3KOKKOS_OUTG_SETUP
@@ -70,6 +75,7 @@ CONTAINS
     IMPLICIT NONE
     INTEGER, INTENT(IN)     :: IMOD
     LOGICAL                 :: OK
+    INTEGER(C_INT)          :: SLOT
     IF ( IMOD < 1 ) RETURN
     OK = .FALSE.
 #ifdef W3_SHRD
@@ -80,6 +86,9 @@ CONTAINS
 #endif
     KOKKOS_OUTG = KOKKOS_PART ( 'OUTG', OK )
     CALL W3KOKKOS_REGISTER ( 'OUTG', KOKKOS_OUTG )
+    ! The counter made here, so the line at exit shows OUTG=0 when no output
+    ! time fell back.
+    IF ( KOKKOS_OUTG ) SLOT = WW_KOKKOS_FALLBACK_SLOT ( 'OUTG'//C_NULL_CHAR )
   END SUBROUTINE W3KOKKOS_OUTG_SETUP
   !/ ------------------------------------------------------------------- /
   !> CALL W3OUTG ( VA, FLPART, FLOUTG, FLOUTG2 ) of W3WAVE, on Kokkos when the
@@ -127,6 +136,23 @@ CONTAINS
     END DO
     FORT = FORT .OR. ( FLOLOC(6,9) .AND. P2MSF(1).LE.0 )
     IF ( FORT ) THEN
+      IF ( FLOLOC(6,8) .OR. FLOLOC(6,12) ) THEN
+        CALL KOKKOS_FALLBACK ( 'OUTG', 'A U3 STOKES FIELD IS REQUESTED '// &
+             '(FLOLOC(6,8) OR (6,12), CALC_U3STOKES), WHICH THE '//         &
+             'TRANSLATION LEAVES TO THE FORTRAN W3OUTG' )
+      ELSE IF ( FLOLOC(8,7) .OR. FLOLOC(8,8) .OR. FLOLOC(8,9) ) THEN
+        CALL KOKKOS_FALLBACK ( 'OUTG', 'A SKEWNESS FIELD IS REQUESTED '//  &
+             '(FLOLOC(8,7:9), SKEWNESS), WHICH THE TRANSLATION LEAVES '//   &
+             'TO THE FORTRAN W3OUTG' )
+      ELSE IF ( FLOLOC(2,17) ) THEN
+        CALL KOKKOS_FALLBACK ( 'OUTG', 'THE WBT FIELD IS REQUESTED '//     &
+             '(FLOLOC(2,17), CALC_WBT), WHICH THE TRANSLATION LEAVES '//    &
+             'TO THE FORTRAN W3OUTG' )
+      ELSE
+        CALL KOKKOS_FALLBACK ( 'OUTG', 'A REQUESTED 3-D OR P2SMS FIELD '// &
+             'IS NOT ALLOCATED (E3DF(1,K) OR P2MSF(1) <= 0), WHICH THE '//  &
+             'TRANSLATION LEAVES TO THE FORTRAN W3OUTG' )
+      END IF
       CALL W3KOKKOS_VA_HOST_READ
       CALL W3OUTG ( VA, FLPART, FLOUTG, FLOUTG2 )
       RETURN
