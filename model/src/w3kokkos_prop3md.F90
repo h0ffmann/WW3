@@ -290,11 +290,12 @@ CONTAINS
     REAL                    :: RD1, RD2
     !
     ! The set-up checked the grid; a later grid of a multi-grid run may differ.
+    ! The shim reads MAPSTA as one row of NX nodes (NY = 1 on UNGTYPE).
     IF ( GTYPE .NE. UNGTYPE .OR. .NOT. FSN .OR.                          &
-         SIZE(MAPSF,1) .NE. NSEA ) THEN
+         SIZE(MAPSF,1) .NE. NSEA .OR. SIZE(MAPSTA) .NE. NX ) THEN
       WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3KOKKOS_PROP3MD : '// &
            'W3XYPUG ON KOKKOS NEEDS AN UNSTRUCTURED GRID WITH THE N '//  &
-           'SCHEME (FSN) AND MAPSF WITH NSEA ROWS'
+           'SCHEME (FSN), MAPSF WITH NSEA ROWS AND MAPSTA OF NX NODES'
       CALL EXTCDE ( 1 )
     END IF
     IF ( ALLOCATED(ON) ) THEN
