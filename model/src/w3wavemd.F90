@@ -3148,10 +3148,6 @@ CONTAINS
 
     IF ( IAPROC .EQ. NAPLOG ) WRITE (NDSO,902)
     !
-#ifdef W3_KOKKOS
-    ! ww3-gpu: VA current on the host when W3WAVE returns to its caller (PATCH.md section 11).
-    CALL W3KOKKOS_VA_HOST_READ
-#endif
     DEALLOCATE(FIELD)
     DEALLOCATE(TAUWX, TAUWY)
     !
