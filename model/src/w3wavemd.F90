@@ -2051,7 +2051,12 @@ CONTAINS
 #ifdef W3_KOKKOS
                 ! ww3-gpu: W3GATH, W3XYP3, W3SCAT of every component on Kokkos under WW_KOKKOS_XYP3=1.
                 IF ( KOKKOS_XYP3 ) THEN
-                  CALL W3KOKKOS_XYP3 ( DTG, MAPSTA )
+                  ! ww3-gpu: on an unstructured grid the part is W3XYPUG (PATCH.md section 30).
+                  IF ( GTYPE .EQ. UNGTYPE ) THEN
+                    CALL W3KOKKOS_XYPUG ( FACX, FACX, DTG, UGDTUPDATE )
+                  ELSE
+                    CALL W3KOKKOS_XYP3 ( DTG, MAPSTA )
+                  END IF
                 ELSE
 #endif
                 DO ISPEC=1, NSPEC
