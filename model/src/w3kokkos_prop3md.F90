@@ -135,6 +135,15 @@ CONTAINS
     KOKKOS_KTP3 = KOKKOS_PART ( 'KTP3', OKK )
     CALL W3KOKKOS_REGISTER ( 'XYP3', KOKKOS_XYP3 )
     CALL W3KOKKOS_REGISTER ( 'KTP3', KOKKOS_KTP3 )
+#else
+    ! Without PR3 and UQ no translation covers the switch: ask anyway, so that
+    ! WW_KOKKOS_XYP3=1 (or a preset) stops and WW_KOKKOS_ALL=1 counts or, under
+    ! WW_KOKKOS_STRICT=1, stops, instead of the part staying off without a word
+    ! (PATCH.md section 28).
+    KOKKOS_XYP3 = KOKKOS_PART ( 'XYP3', .FALSE. )
+    KOKKOS_KTP3 = KOKKOS_PART ( 'KTP3', .FALSE. )
+    CALL W3KOKKOS_REGISTER ( 'XYP3', KOKKOS_XYP3 )
+    CALL W3KOKKOS_REGISTER ( 'KTP3', KOKKOS_KTP3 )
 #endif
   END SUBROUTINE W3KOKKOS_PROP3_SETUP
   !/ ------------------------------------------------------------------- /
