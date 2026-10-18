@@ -8,11 +8,12 @@
 !> of what W3OUTG (w3iogomd.F90) reads. W3KOKKOS_OUTG replaces CALL W3OUTG
 !> (VA, FLPFLD, FLOUTG, FLOUTG2) of W3WAVE section 4.b: the Kokkos translation
 !> (iogo_w3outg.hpp) reads the resident VA, so a field-output time copies no
-!> VA to the host for it. When a field the translation leaves to the Fortran
-!> is requested, the partitions of section 6 (FLPART), CALC_U3STOKES
-!> (FLOLOC(6,8), (6,12)), SKEWNESS (FLOLOC(8,7:9)) or CALC_WBT (FLOLOC(2,17)),
-!> or a requested 3-D field is not allocated, it calls the Fortran W3OUTG
-!> whole, after a host read of VA. Opt-in: WW_KOKKOS_OUTG=1; WW_KOKKOS_ALL
+!> VA to the host for it. The partition fields of section 6 (FLPART) come
+!> from W3CPRT's table (ICPRT, DTPRT) through ww_outg_part, which reads no
+!> VA (PATCH.md section 27). When a field the translation leaves to the
+!> Fortran is requested, CALC_U3STOKES (FLOLOC(6,8), (6,12)), SKEWNESS
+!> (FLOLOC(8,7:9)) or CALC_WBT (FLOLOC(2,17)), or a requested 3-D field is not
+!> allocated, it calls the Fortran W3OUTG whole, after a host read of VA. Opt-in: WW_KOKKOS_OUTG=1; WW_KOKKOS_ALL
 !> does not turn it on.
 !>
 !> SPDX-License-Identifier: LGPL-3.0-or-later
@@ -29,6 +30,8 @@ MODULE W3KOKKOS_OUTGMD
   !
   !> outg_c.hpp: WW_OUTG_NIPAR, WW_OUTG_NRPAR, WW_OUTG_NFIELD, WW_OUTG_N1D.
   INTEGER, PARAMETER :: NIPAR = 25, NRPAR = 10, NFIELD = 46, N1D = 40
+  !> outg_c.hpp: WW_OUTGP_NIPAR, WW_OUTGP_NRPAR, WW_OUTGP_NFIELD.
+  INTEGER, PARAMETER :: NIPARP = 13, NRPARP = 2, NFIELDP = 17
   !
   INTERFACE
     INTEGER(C_INT) FUNCTION WW_OUTG_VA ( IGRID, IPAR, NIPAR, RPAR,      &
@@ -46,6 +49,16 @@ MODULE W3KOKKOS_OUTGMD
       REAL(C_FLOAT), INTENT(INOUT) :: VA(*)
       TYPE(C_PTR), INTENT(IN)      :: FIELDS(*)
     END FUNCTION WW_OUTG_VA
+    INTEGER(C_INT) FUNCTION WW_OUTG_PART ( IPAR, NIPAR, RPAR, NRPAR,    &
+         FLOGRD, FLOGR2, MAPSF, MAPSTA, ICPRT, DTPRT, FIELDS, NFIELDS ) &
+         BIND(C, NAME='ww_outg_part')
+      IMPORT :: C_INT, C_FLOAT, C_PTR
+      INTEGER(C_INT), VALUE        :: NIPAR, NRPAR, NFIELDS
+      INTEGER(C_INT), INTENT(IN)   :: IPAR(*), FLOGRD(*), FLOGR2(*),    &
+           MAPSF(*), MAPSTA(*), ICPRT(*)
+      REAL(C_FLOAT), INTENT(IN)    :: RPAR(*), DTPRT(*)
+      TYPE(C_PTR), INTENT(IN)      :: FIELDS(*)
+    END FUNCTION WW_OUTG_PART
   END INTERFACE
   !
 CONTAINS
@@ -80,9 +93,11 @@ CONTAINS
          THS, THP0, HSIG, QKK, QP, WBT, STMAXE, STMAXD, HCMAXE, HMAXE,  &
          HCMAXD, HMAXD, ABA, ABD, UBA, UBD, SXX, SYY, SXY, USSX, USSY,  &
          TUSX, TUSY, MSSX, MSSY, MSSD, MSCX, MSCY, MSCD, PRMS, TPMS,    &
-         BHD, CGE, EF, TH1M, STH1M, TH2M, STH2M, P2SMS
+         BHD, CGE, EF, TH1M, STH1M, TH2M, STH2M, P2SMS, PHS, PTP, PLP,  &
+         PDIR, PSI, PWS, PTHP0, PQP, PPE, PGW, PSW, PTM1, PT1, PT2, PEP, &
+         PWST, PNR
     USE W3ODATMD, ONLY: UNDEF, WSCUT, FLOGRD, FLOGR2, FLOGRR, NOGRP,    &
-         NGRPP, NDSE
+         NGRPP, NDSE, NOSWLL, ICPRT, DTPRT, DIMP
     USE W3IORSMD, ONLY: OARST
     USE W3IOGOMD, ONLY: W3OUTG
     USE W3KOKKOS_RESIDENTMD, ONLY: W3KOKKOS_VA_HOST_READ
@@ -95,7 +110,9 @@ CONTAINS
     INTEGER(C_INT)          :: LGRD(NOGRP*NGRPP), LGR2(NOGRP*NGRPP),    &
          LGRR(NOGRP*NGRPP)
     REAL(C_FLOAT)           :: RPAR(NRPAR)
-    TYPE(C_PTR)             :: FPTR(NFIELD)
+    TYPE(C_PTR)             :: FPTR(NFIELD), PPTR(NFIELDP)
+    INTEGER(C_INT)          :: IPARP(NIPARP)
+    REAL(C_FLOAT)           :: RPARP(NRPARP)
     !
     ! W3OUTG's FLOLOC (w3iogomd.F90:1381-1386).
     DO I=1, NOGRP
@@ -103,7 +120,7 @@ CONTAINS
         FLOLOC(I,J) = (FLOUTG.AND.FLOGRD(I,J)).OR.(FLOUTG2.AND.FLOGR2(I,J))
       END DO
     END DO
-    FORT = FLPART .OR. FLOLOC(6,8) .OR. FLOLOC(6,12) .OR. FLOLOC(8,7)   &
+    FORT = FLOLOC(6,8) .OR. FLOLOC(6,12) .OR. FLOLOC(8,7)               &
          .OR. FLOLOC(8,8) .OR. FLOLOC(8,9) .OR. FLOLOC(2,17)
     DO K=1, 5
       FORT = FORT .OR. ( FLOLOC(3,K) .AND. E3DF(1,K).LE.0 )
@@ -213,6 +230,48 @@ CONTAINS
       WRITE (NDSE,'(A,I0)') '*** WAVEWATCH III ERROR IN W3KOKKOS_OUTGMD : '// &
            'KOKKOS W3OUTG FAILED, CODE ', IERR
       CALL EXTCDE ( 1 )
+    END IF
+    !
+    ! Section 6 (w3iogomd.F90:2242-2340) after ww_outg_va, which ran it with
+    ! FLPART false: it reads ICPRT and DTPRT, left on the host by W3CPRT or
+    ! W3KOKKOS_CPRT, and no VA; no other section reads what it writes.
+    IF ( FLPART ) THEN
+      IF ( SIZE(PHS,1).NE.SIZE(PWST) .OR. LBOUND(PHS,2).NE.0 .OR.        &
+           UBOUND(PHS,2).NE.NOSWLL .OR. SIZE(DTPRT,1).NE.DIMP ) THEN
+        WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3KOKKOS_OUTGMD : '// &
+             'A PARTITION FIELD OR DTPRT HAS AN UNEXPECTED SHAPE'
+        CALL EXTCDE ( 1 )
+      END IF
+      IPARP = (/ NSEAL, SIZE(MAPSF,1), SIZE(MAPSTA,2), SIZE(MAPSTA,1),   &
+           SIZE(PWST), NOSWLL, SIZE(ICPRT,1), SIZE(DTPRT,2), DIMP, NOGRP, &
+           NGRPP, MERGE ( 1, 0, FLOUTG ), MERGE ( 1, 0, FLOUTG2 ) /)
+      RPARP = (/ UNDEF, WSCUT /)
+      ! The fields, in the order of WwOutgPartField (outg_c.hpp).
+      PPTR(1)  = C_LOC(PHS(1,0))
+      PPTR(2)  = C_LOC(PTP(1,0))
+      PPTR(3)  = C_LOC(PLP(1,0))
+      PPTR(4)  = C_LOC(PDIR(1,0))
+      PPTR(5)  = C_LOC(PSI(1,0))
+      PPTR(6)  = C_LOC(PWS(1,0))
+      PPTR(7)  = C_LOC(PTHP0(1,0))
+      PPTR(8)  = C_LOC(PQP(1,0))
+      PPTR(9)  = C_LOC(PPE(1,0))
+      PPTR(10) = C_LOC(PGW(1,0))
+      PPTR(11) = C_LOC(PSW(1,0))
+      PPTR(12) = C_LOC(PTM1(1,0))
+      PPTR(13) = C_LOC(PT1(1,0))
+      PPTR(14) = C_LOC(PT2(1,0))
+      PPTR(15) = C_LOC(PEP(1,0))
+      PPTR(16) = C_LOC(PWST(1))
+      PPTR(17) = C_LOC(PNR(1))
+      IERR = WW_OUTG_PART ( IPARP, INT(NIPARP,C_INT), RPARP,             &
+           INT(NRPARP,C_INT), LGRD, LGR2, MAPSF, MAPSTA, ICPRT, DTPRT,    &
+           PPTR, INT(NFIELDP,C_INT) )
+      IF ( IERR /= 0_C_INT ) THEN
+        WRITE (NDSE,'(A,I0)') '*** WAVEWATCH III ERROR IN W3KOKKOS_OUTGMD : '// &
+             'KOKKOS W3OUTG PARTITION FIELDS FAILED, CODE ', IERR
+        CALL EXTCDE ( 1 )
+      END IF
     END IF
   END SUBROUTINE W3KOKKOS_OUTG
   !/ ------------------------------------------------------------------- /

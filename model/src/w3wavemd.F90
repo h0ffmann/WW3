@@ -2685,12 +2685,22 @@ CONTAINS
         WRITE (NDST,9042) LOCAL, FLPART, FLOUTG
 #endif
         !
+#ifdef W3_KOKKOS
+        ! ww3-gpu: W3CPRT on the resident VA under WW_KOKKOS_CPRT=1; only ICPRT and DTPRT come
+        ! back to the host (PATCH.md section 27).
+        IF ( LOCAL .AND. FLPART .AND. KOKKOS_CPRT ) THEN
+          CALL W3KOKKOS_CPRT ( IMOD )
+        ELSE
+#endif
 #if defined(W3_KOKKOS) && !defined(W3_MPI)
         ! ww3-gpu: VA current on the host before each reader of it below, not once for all, so
         ! that an output time with W3OUTG on Kokkos copies no VA (PATCH.md section 15).
         IF ( LOCAL .AND. FLPART ) CALL W3KOKKOS_VA_HOST_READ
 #endif
         IF ( LOCAL .AND. FLPART ) CALL W3CPRT ( IMOD )
+#ifdef W3_KOKKOS
+        END IF
+#endif
         IF ( LOCAL .AND. (FLOUTG .OR. FLOUTG2) ) then
 #ifdef W3_KOKKOS
           ! ww3-gpu: W3OUTG on the resident VA under WW_KOKKOS_OUTG=1; W3KOKKOS_OUTG calls the
@@ -2953,7 +2963,9 @@ CONTAINS
                 END IF
               ELSE IF ( J .EQ. 6 ) THEN
 #if defined(W3_KOKKOS) && !defined(W3_MPI)
-                CALL W3KOKKOS_VA_HOST_READ
+                ! ww3-gpu: W3IOSF reads ICPRT and DTPRT, no VA (w3iosfmd.F90:429-453), so with
+                ! W3CPRT on Kokkos it needs no host copy of VA (PATCH.md section 27).
+                IF ( .NOT. KOKKOS_CPRT ) CALL W3KOKKOS_VA_HOST_READ
 #endif
                 CALL W3IOSF ( NDS(13), IMOD )
 #ifdef W3_OASIS
