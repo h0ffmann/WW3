@@ -190,6 +190,9 @@ CONTAINS
     USE W3CSPCMD, ONLY: W3CSPC
     USE W3SERVMD, ONLY: EXTCDE
     USE W3PARALL, ONLY: INIT_GET_JSEA_ISPROC
+#ifdef W3_KOKKOS
+    USE W3KOKKOS_RESIDENTMD, ONLY: W3KOKKOS_VA_READ_COLS
+#endif
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
 #endif
@@ -209,6 +212,10 @@ CONTAINS
     !/ Local parameters
     !/
     INTEGER                 :: J, I, IOFF, ISEA, JSEA, IS
+#ifdef W3_KOKKOS
+    INTEGER                 :: KN
+    INTEGER, ALLOCATABLE    :: KCOLS(:)
+#endif
 #ifdef W3_DIST
     INTEGER                 :: ISPROC
 #endif
@@ -355,6 +362,26 @@ CONTAINS
       ! -------------------------------------------------------------------- /
       ! 4.  Stage the spectral data
       !
+#ifdef W3_KOKKOS
+      ! ww3-gpu: the columns of VA read below, from the resident device copy, and no other
+      ! column (PATCH.md section 24). The list is the JSEA of the loop below.
+      ALLOCATE ( KCOLS(NBI2G(J,IMOD)) )
+      KN     = 0
+      DO I=1, NBI2G(J,IMOD)
+        ISEA   = NBI2S(IOFF+I,2)
+#ifdef W3_SHRD
+        JSEA   = ISEA
+#endif
+#ifdef W3_DIST
+        CALL INIT_GET_JSEA_ISPROC(ISEA, JSEA, ISPROC)
+        IF ( ISPROC .NE. IAPROC ) CYCLE
+#endif
+        KN     = KN + 1
+        KCOLS(KN) = JSEA
+      END DO
+      CALL W3KOKKOS_VA_READ_COLS ( KN, KCOLS )
+      DEALLOCATE ( KCOLS )
+#endif
       DO I=1, NBI2G(J,IMOD)
         !
         ISEA   = NBI2S(IOFF+I,2)
@@ -1468,6 +1495,9 @@ CONTAINS
 #endif
     USE W3TIMEMD, ONLY: DSEC21
     USE W3PARALL, ONLY: INIT_GET_ISEA
+#ifdef W3_KOKKOS
+    USE W3KOKKOS_RESIDENTMD, ONLY: W3KOKKOS_VA_READ_COLS
+#endif
     !
 #ifdef W3_MPI
     use mpi_f08
@@ -1484,6 +1514,10 @@ CONTAINS
     !/ Local parameters
     !/
     INTEGER                 :: J, NR, I, JSEA, ISEA, IS
+#ifdef W3_KOKKOS
+    INTEGER                 :: KN
+    INTEGER, ALLOCATABLE    :: KCOLS(:)
+#endif
 #ifdef W3_MPI
     INTEGER                 :: ITAG, IP, IT0, IERR_MPI
 #endif
@@ -1614,6 +1648,15 @@ CONTAINS
       IT0    = MTAG1 + 1
 #endif
       !
+#ifdef W3_KOKKOS
+      ! ww3-gpu: the columns of VA read below, from the resident device copy, and no other
+      ! column (PATCH.md section 24).
+      ALLOCATE ( KCOLS(NR) )
+      KN     = NR
+      KCOLS  = HGSTGE(J,IMOD)%ISEND(1:NR,1)
+      CALL W3KOKKOS_VA_READ_COLS ( KN, KCOLS )
+      DEALLOCATE ( KCOLS )
+#endif
       DO I=1, NR
         !
         JSEA   = HGSTGE(J,IMOD)%ISEND(I,1)
@@ -1814,6 +1857,9 @@ CONTAINS
     USE yowExchangeModule, only : PDLIB_exchange2Dreal_zero
 #endif
     USE W3PARALL, ONLY : INIT_GET_ISEA
+#ifdef W3_KOKKOS
+    USE W3KOKKOS_RESIDENTMD, ONLY: W3KOKKOS_VA_WRITE_COLS
+#endif
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
 #endif
@@ -1834,6 +1880,10 @@ CONTAINS
     !/ Local parameters
     !/
     INTEGER                 :: NTOT, J, IS, NA, IA, JSEA, ISEA, I
+#ifdef W3_KOKKOS
+    INTEGER                 :: KN
+    INTEGER, ALLOCATABLE    :: KCOLS(:)
+#endif
 #ifdef W3_MPI
     INTEGER                 :: ITAG, IT0, IFROM, ILOC, NLOC,   &
          ISPROC, IERR_MPI, ICOUNT,       &
@@ -2265,6 +2315,16 @@ CONTAINS
         END DO
       END DO
       !
+#ifdef W3_KOKKOS
+      ! ww3-gpu: the columns of VA written above, stored into the resident device copy
+      ! (PATCH.md section 24). The loop writes every element of each, and reads none.
+      ALLOCATE ( KCOLS(NTOT) )
+      KN     = NTOT
+      KCOLS  = HGSTGE(IMOD,J)%LJSEA(1:NTOT)
+      CALL W3KOKKOS_VA_WRITE_COLS ( KN, KCOLS )
+      DEALLOCATE ( KCOLS )
+      !
+#endif
       DEALLOCATE ( SPEC2 )
       !
     END DO
@@ -2581,6 +2641,9 @@ CONTAINS
     USE W3SERVMD, ONLY: STRACE
 #endif
     USE W3TIMEMD, ONLY: DSEC21
+#ifdef W3_KOKKOS
+    USE W3KOKKOS_RESIDENTMD, ONLY: W3KOKKOS_VA_READ_COLS
+#endif
     !
 #ifdef W3_MPI
     use mpi_f08
@@ -2597,6 +2660,10 @@ CONTAINS
     !/ Local parameters
     !/
     INTEGER                 :: J, NR, I, ISEA, JSEA, IS, I1, I2
+#ifdef W3_KOKKOS
+    INTEGER                 :: KN
+    INTEGER, ALLOCATABLE    :: KCOLS(:)
+#endif
 #ifdef W3_MPI
     INTEGER                 :: IT0, ITAG, IP, IERR_MPI
 #endif
@@ -2702,6 +2769,15 @@ CONTAINS
       IT0 = MTAG2 + 1
 #endif
       !
+#ifdef W3_KOKKOS
+      ! ww3-gpu: the columns of VA read below, from the resident device copy, and no other
+      ! column (PATCH.md section 24).
+      ALLOCATE ( KCOLS(NR) )
+      KN     = NR
+      KCOLS  = EQSTGE(J,IMOD)%SJS(1:NR)
+      CALL W3KOKKOS_VA_READ_COLS ( KN, KCOLS )
+      DEALLOCATE ( KCOLS )
+#endif
       DO I=1, NR
         !
         ISEA   = EQSTGE(J,IMOD)%SIS(I)
@@ -2908,6 +2984,9 @@ CONTAINS
     USE WMMDATMD
     !
     USE W3CSPCMD, ONLY: W3CSPC
+#ifdef W3_KOKKOS
+    USE W3KOKKOS_RESIDENTMD, ONLY: W3KOKKOS_VA_READ_COLS, W3KOKKOS_VA_WRITE_COLS
+#endif
     USE W3TIMEMD, ONLY: DSEC21
     USE W3SERVMD, ONLY: EXTCDE
 #ifdef W3_PDLIB
@@ -2934,6 +3013,10 @@ CONTAINS
     !/ Local parameters
     !/
     INTEGER                 :: J, I, ISEA, JSEA, IA, IS
+#ifdef W3_KOKKOS
+    INTEGER                 :: KN
+    INTEGER, ALLOCATABLE    :: KCOLS(:)
+#endif
 #ifdef W3_S
     INTEGER, SAVE           :: IENT = 0
 #endif
@@ -3255,6 +3338,29 @@ CONTAINS
     WRITE (MDST,9021) IMOD, EQSTGE(IMOD,IMOD)%NREC
 #endif
     !
+#ifdef W3_KOKKOS
+    ! ww3-gpu: the columns of VA that 2.a and 2.b read and write, from the resident device
+    ! copy, and no other column (PATCH.md section 24). The lists are the JSEA of the loops below.
+    KN     = EQSTGE(IMOD,IMOD)%NREC
+    DO J=1, NRGRD
+      IF ( IMOD.EQ.J .OR. EQSTGE(IMOD,J)%NREC.EQ.0 ) CYCLE
+      KN     = KN + EQSTGE(IMOD,J)%NREC
+    END DO
+    ALLOCATE ( KCOLS(MAX(1,KN)) )
+    KN     = 0
+    DO I=1, EQSTGE(IMOD,IMOD)%NREC
+      KN     = KN + 1
+      KCOLS(KN) = EQSTGE(IMOD,IMOD)%JSEA(I)
+    END DO
+    DO J=1, NRGRD
+      IF ( IMOD.EQ.J .OR. EQSTGE(IMOD,J)%NREC.EQ.0 ) CYCLE
+      DO I=1, EQSTGE(IMOD,J)%NREC
+        KN     = KN + 1
+        KCOLS(KN) = EQSTGE(IMOD,J)%JSEA(I)
+      END DO
+    END DO
+    CALL W3KOKKOS_VA_READ_COLS ( KN, KCOLS )
+#endif
     DO I=1, EQSTGE(IMOD,IMOD)%NREC
       JSEA   = EQSTGE(IMOD,IMOD)%JSEA(I)
       WGHT   = EQSTGE(IMOD,IMOD)%WGHT(I)
@@ -3348,6 +3454,13 @@ CONTAINS
       !!  End 2.b J grid loop.
     END DO
     !
+#ifdef W3_KOKKOS
+    ! ww3-gpu: the columns of VA written above, stored into the resident device copy
+    ! (PATCH.md section 24).
+    CALL W3KOKKOS_VA_WRITE_COLS ( KN, KCOLS )
+    DEALLOCATE ( KCOLS )
+    !
+#endif
     ! -------------------------------------------------------------------- /
     ! 3.  Set flag if requested
     !
