@@ -11,7 +11,7 @@
 !> ww3_multi routines that read or write a few columns of VA between W3WAVE
 !> calls (wminiomd.F90) call W3KOKKOS_VA_READ_COLS before and
 !> W3KOKKOS_VA_WRITE_COLS after, which move those columns only (PATCH.md
-!> section 24). With no Kokkos kernel on the resident VA the state never
+!> section 26). With no Kokkos kernel on the resident VA the state never
 !> leaves HOST and every call copies nothing. A wiring unit of PATCH.md
 !> section 9: no part of its own.
 !>

@@ -1365,7 +1365,7 @@ CONTAINS
 #if defined(W3_KOKKOS) && defined(W3_MPI)
                   ! ww3-gpu: the requests of W3MPIP send columns of VA, so VA of grid I
                   ! (IGRID and VA are still those of W3WAVE ( I )) current on the host
-                  ! first, as W3WAVE's own output block does under MPI (PATCH.md section 24).
+                  ! first, as W3WAVE's own output block does under MPI (PATCH.md section 26).
                   CALL W3KOKKOS_VA_HOST_READ
 #endif
 #ifdef W3_MPI
@@ -1378,7 +1378,7 @@ CONTAINS
                     CALL W3SETA ( I, MDSE, MDST )
 #if defined(W3_KOKKOS) && !defined(W3_MPI)
                     ! ww3-gpu: as before W3WAVE's own W3IOPE: under WW_KOKKOS_IOPE=1 only the
-                    ! columns W3IOPE reads come back from the device (PATCH.md section 24).
+                    ! columns W3IOPE reads come back from the device (PATCH.md section 26).
                     IF ( KOKKOS_IOPE ) THEN
                       CALL W3KOKKOS_IOPE_READ
                     ELSE

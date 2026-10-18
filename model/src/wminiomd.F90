@@ -364,7 +364,7 @@ CONTAINS
       !
 #ifdef W3_KOKKOS
       ! ww3-gpu: the columns of VA read below, from the resident device copy, and no other
-      ! column (PATCH.md section 24). The list is the JSEA of the loop below.
+      ! column (PATCH.md section 26). The list is the JSEA of the loop below.
       ALLOCATE ( KCOLS(NBI2G(J,IMOD)) )
       KN     = 0
       DO I=1, NBI2G(J,IMOD)
@@ -1650,7 +1650,7 @@ CONTAINS
       !
 #ifdef W3_KOKKOS
       ! ww3-gpu: the columns of VA read below, from the resident device copy, and no other
-      ! column (PATCH.md section 24).
+      ! column (PATCH.md section 26).
       ALLOCATE ( KCOLS(NR) )
       KN     = NR
       KCOLS  = HGSTGE(J,IMOD)%ISEND(1:NR,1)
@@ -2317,7 +2317,7 @@ CONTAINS
       !
 #ifdef W3_KOKKOS
       ! ww3-gpu: the columns of VA written above, stored into the resident device copy
-      ! (PATCH.md section 24). The loop writes every element of each, and reads none.
+      ! (PATCH.md section 26). The loop writes every element of each, and reads none.
       ALLOCATE ( KCOLS(NTOT) )
       KN     = NTOT
       KCOLS  = HGSTGE(IMOD,J)%LJSEA(1:NTOT)
@@ -2771,7 +2771,7 @@ CONTAINS
       !
 #ifdef W3_KOKKOS
       ! ww3-gpu: the columns of VA read below, from the resident device copy, and no other
-      ! column (PATCH.md section 24).
+      ! column (PATCH.md section 26).
       ALLOCATE ( KCOLS(NR) )
       KN     = NR
       KCOLS  = EQSTGE(J,IMOD)%SJS(1:NR)
@@ -3340,7 +3340,7 @@ CONTAINS
     !
 #ifdef W3_KOKKOS
     ! ww3-gpu: the columns of VA that 2.a and 2.b read and write, from the resident device
-    ! copy, and no other column (PATCH.md section 24). The lists are the JSEA of the loops below.
+    ! copy, and no other column (PATCH.md section 26). The lists are the JSEA of the loops below.
     KN     = EQSTGE(IMOD,IMOD)%NREC
     DO J=1, NRGRD
       IF ( IMOD.EQ.J .OR. EQSTGE(IMOD,J)%NREC.EQ.0 ) CYCLE
@@ -3456,7 +3456,7 @@ CONTAINS
     !
 #ifdef W3_KOKKOS
     ! ww3-gpu: the columns of VA written above, stored into the resident device copy
-    ! (PATCH.md section 24).
+    ! (PATCH.md section 26).
     CALL W3KOKKOS_VA_WRITE_COLS ( KN, KCOLS )
     DEALLOCATE ( KCOLS )
     !
