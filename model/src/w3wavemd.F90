@@ -2931,7 +2931,9 @@ CONTAINS
                 ! Track output
                 !
 #if defined(W3_KOKKOS) && !defined(W3_MPI)
-                CALL W3KOKKOS_VA_HOST_READ
+                ! ww3-gpu: under WW_KOKKOS_IOPE=1 W3IOTR reads back the columns it
+                ! writes itself, once it has read the track file (PATCH.md section 23).
+                IF ( .NOT. KOKKOS_IOPE ) CALL W3KOKKOS_VA_HOST_READ
 #endif
                 CALL W3IOTR ( NDS(11), NDS(12), VA, IMOD )
               ELSE IF ( J .EQ. 4 ) THEN
@@ -2946,7 +2948,13 @@ CONTAINS
                   IF (NRQBP2.NE.0) CALL MPI_WAITALL ( NRQBP2, IRQBP2,STATIO, IERR_MPI )
 #endif
 #if defined(W3_KOKKOS) && !defined(W3_MPI)
-                  CALL W3KOKKOS_VA_HOST_READ
+                  ! ww3-gpu: under WW_KOKKOS_IOPE=1 only the columns ISBPO of VA
+                  ! W3IOBC reads come back from the device (PATCH.md section 23).
+                  IF ( KOKKOS_IOPE ) THEN
+                    CALL W3KOKKOS_IOBC_READ
+                  ELSE
+                    CALL W3KOKKOS_VA_HOST_READ
+                  END IF
 #endif
                   CALL W3IOBC ( 'WRITE', NDS(10),         &
                        TIME, TIME, ITEST, IMOD )
@@ -2967,9 +2975,8 @@ CONTAINS
                     IF ( (CPLT0 .AND. (DSEC21 (TIME, TIMEN) .GT. 0.0)) .OR. &
                          .NOT. CPLT0 ) THEN
                       IF (CPLT0) ID_OASIS_TIME = NINT(DSEC21 ( TIME00 , TIME ))
-#if defined(W3_KOKKOS) && !defined(W3_MPI)
-                      CALL W3KOKKOS_VA_HOST_READ
-#endif
+                      ! ww3-gpu: no VA sync; SND_FIELDS_TO_ATMOS, _OCEAN and _ICE read
+                      ! no VA (w3agcmmd.F90, w3ogcmmd.F90, w3igcmmd.F90; PATCH.md section 23).
 
 #endif
 #ifdef W3_OASACM

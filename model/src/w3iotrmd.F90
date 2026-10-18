@@ -250,6 +250,9 @@ CONTAINS
 #ifdef W3_S
     USE W3SERVMD, ONLY: STRACE
 #endif
+#if defined(W3_KOKKOS) && defined(W3_SHRD) && !defined(W3_MPI)
+    USE W3KOKKOS_PNTMD, ONLY: KOKKOS_IOPE, W3KOKKOS_IOTR_READ
+#endif
 #ifdef W3_MPI
     use mpi_f08
 #endif
@@ -711,6 +714,12 @@ CONTAINS
       END DO
       WRITE (NDST,9036) MAPSTR
     END DO
+#endif
+#if defined(W3_KOKKOS) && defined(W3_SHRD) && !defined(W3_MPI)
+    ! ww3-gpu: under WW_KOKKOS_IOPE=1 W3WAVE makes no host read of VA before
+    ! this call; the columns section 4 reads come back from the device here,
+    ! once MASK1 is known (PATCH.md section 23).
+    IF ( KOKKOS_IOPE ) CALL W3KOKKOS_IOTR_READ
 #endif
     !
     ! 4.  Write data for flagged locations ------------------------------- *
