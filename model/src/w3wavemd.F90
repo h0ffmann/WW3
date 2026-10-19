@@ -2499,7 +2499,7 @@ CONTAINS
                            TWS(JSEA), PHIOC(JSEA), TMP1, PHIBBL(JSEA),     &
                            TMP3, TMP4, PHICE(JSEA), TAUOCX(JSEA),          &
                            TAUOCY(JSEA), WNMEAN(JSEA), RHOAIR(ISEA),       &
-                           ASF(ISEA) )
+                           ASF(ISEA), FPIS(ISEA) )
                     ELSE
 #endif
                     CALL W3SRCE(srce_direct, IT, ISEA, JSEA, IX, IY, IMOD, &

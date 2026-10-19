@@ -239,10 +239,14 @@ MODULE W3KOKKOSMD
        RS_SLNC1 = RS_ICESCALES + 4, RS_FSPM = RS_SLNC1 + 1,             &
        RS_FSHF = RS_SLNC1 + 2, RS_SBTC1 = RS_SLNC1 + 3,                 &
        RS_SDBC1 = RS_SLNC1 + 4, RS_SDBC2 = RS_SLNC1 + 5,                &
-       NRSPAR = RS_SLNC1 + 6
+       RS_FACSD = RS_SLNC1 + 6, RS_FTTR = RS_SLNC1 + 7,                 &
+       RS_FLDALPHA = RS_SLNC1 + 8, RS_TAIL_LEV = RS_SLNC1 + 9,          &
+       RS_TAIL_TRAN1 = RS_SLNC1 + 10, RS_TAIL_TRAN2 = RS_SLNC1 + 11,    &
+       NRSPAR = RS_SLNC1 + 12
   INTEGER, PARAMETER :: IS_NK = 0, IS_NTH = 1, IS_NSPEC = 2,           &
        IS_IQTPE = 3, IS_IICEDISP = 4, IS_IC_NUMERICS = 5, IS_FDONLY = 6, &
-       IS_LAB_SWITCH = 7, NISPAR = 8
+       IS_LAB_SWITCH = 7, IS_LN1 = 8, IS_SEED = 9, IS_FLD2 = 10,        &
+       IS_TAIL_ID = 11, NISPAR = 12
   !/
   !/ WW_SRCE_BATCH packet rows, 0-based as WwSrceBatchIn and WwSrceBatchScal
   !/ in ww_kokkos_c.hpp: PIN(SRCEB_I_X+1, IP), PSC(SRCEB_S_X+1, IP).
@@ -257,7 +261,7 @@ MODULE W3KOKKOSMD
        SRCEB_S_TAUWNY = 11, SRCEB_S_PHIAW = 12, SRCEB_S_CHARN = 13,     &
        SRCEB_S_TWS = 14, SRCEB_S_PHIOC = 15, SRCEB_S_PHIBBL = 16,       &
        SRCEB_S_PHICE = 17, SRCEB_S_TAUOCX = 18, SRCEB_S_TAUOCY = 19,    &
-       SRCEB_S_WNMEAN = 20, SRCEB_NPSC = 21
+       SRCEB_S_WNMEAN = 20, SRCEB_S_FPI = 21, SRCEB_NPSC = 22
   !/
   !/ ST4 packet indices, 0-based as in ww_kokkos/st4_params.hpp and
   !/ st4_arrays.hpp: Fortran RPAR(R_X+1). Change them only with those headers.
@@ -446,7 +450,7 @@ MODULE W3KOKKOSMD
           COEF, USTAR, USTDIR, TAUWX, TAUWY, DTDYN, FCUT, TAUOX, TAUOY,  &
           TAUWIX, TAUWIY, TAUWNX, TAUWNY, PHIAW, CHARN, TWS, PHIOC,      &
           WHITECAP, PHIBBL, TAUBBL, TAUICE, PHICE, TAUOCX, TAUOCY,       &
-          WNMEAN, SHAVE ) BIND(C, NAME='ww_srce')
+          WNMEAN, FPI, SHAVE ) BIND(C, NAME='ww_srce')
        IMPORT :: C_INT, C_FLOAT
        INTEGER(C_INT), VALUE           :: IGRID, IT, INFLAGS24,          &
                                           FLOGRD57, FLOGRD58
@@ -459,7 +463,7 @@ MODULE W3KOKKOSMD
                                           TAUWNY, PHIAW, CHARN, TWS,     &
                                           PHIOC, WHITECAP(*), PHIBBL,    &
                                           TAUBBL(*), TAUICE(*), PHICE,   &
-                                          TAUOCX, TAUOCY, WNMEAN
+                                          TAUOCX, TAUOCY, WNMEAN, FPI
        INTEGER(C_INT), INTENT(INOUT)   :: SHAVE
      END SUBROUTINE WW_SRCE
      !
@@ -1777,7 +1781,10 @@ CONTAINS
     USE W3GDATMD, ONLY: NK, NTH, NSPEC, SIG, DDEN, ECOS, ESIN, MAPWN,  &
          DMIN, DTMAX, DTMIN, FACTI1, FACTI2, FACHFA, FACP, XFLT, XREL,  &
          FHMAX, FFXFM, FFXPM, FFXFA, ICESCALES, IICEDISP, IC_NUMERICS,  &
-         IQTPE
+         IQTPE, FACSD, FTTR
+#ifdef W3_FLD2
+    USE W3GDATMD, ONLY: FLDALPHA, TAIL_ID, TAIL_LEV, TAIL_TRAN1, TAIL_TRAN2
+#endif
     ! W3GDATMD declares these only under their switch; without it the packet
     ! keeps 0 and the switch gate below leaves W3SRCE to the Fortran.
 #ifdef W3_LN1
@@ -1794,6 +1801,15 @@ CONTAINS
     REAL(C_FLOAT)           :: RPAR(NRSPAR)
     INTEGER(C_INT)          :: IPAR(NISPAR)
     INTEGER                 :: J
+#ifdef W3_FLD2
+    ! W3FLD2's INFLD copies the tail parameters of the grid current at the
+    ! thread's first call (w3fld1md.F90:861-864) and keeps them for every grid.
+    ! The kernel reads each grid's own, equal to those unless two grids of one
+    ! run differ: the first grid's are kept and a different one stops the part.
+    LOGICAL, SAVE           :: TAIL_SEEN = .FALSE.
+    INTEGER, SAVE           :: TAIL_ID0
+    REAL, SAVE              :: TAIL_P0(3)
+#endif
     !
     RPAR = 0.
     IPAR = 0
@@ -1831,18 +1847,48 @@ CONTAINS
     IPAR(IS_IQTPE+1)  = IQTPE
     IPAR(IS_IICEDISP+1)    = MERGE(1, 0, IICEDISP)
     IPAR(IS_IC_NUMERICS+1) = MERGE(1, 0, IC_NUMERICS)
+    RPAR(RS_FACSD+1)       = FACSD
+    RPAR(RS_FTTR+1)        = FTTR
+#ifdef W3_LN1
+    IPAR(IS_LN1+1)         = 1
+#endif
+#ifdef W3_SEED
+    IPAR(IS_SEED+1)        = 1
+#endif
+#ifdef W3_FLD2
+    IPAR(IS_FLD2+1)        = 1
+    RPAR(RS_FLDALPHA+1)    = FLDALPHA
+    RPAR(RS_TAIL_LEV+1)    = TAIL_LEV
+    RPAR(RS_TAIL_TRAN1+1)  = TAIL_TRAN1
+    RPAR(RS_TAIL_TRAN2+1)  = TAIL_TRAN2
+    IPAR(IS_TAIL_ID+1)     = TAIL_ID
+    IF ( .NOT. TAIL_SEEN ) THEN
+      TAIL_SEEN = .TRUE.
+      TAIL_ID0 = TAIL_ID
+      TAIL_P0 = (/ TAIL_LEV, TAIL_TRAN1, TAIL_TRAN2 /)
+    ELSE IF ( TAIL_ID /= TAIL_ID0 .OR. TAIL_LEV /= TAIL_P0(1) .OR.      &
+         TAIL_TRAN1 /= TAIL_P0(2) .OR. TAIL_TRAN2 /= TAIL_P0(3) ) THEN
+      KOKKOS_SRCE = .FALSE.
+      CALL KOKKOS_FALLBACK ( 'SRCE', 'THE GRIDS DIFFER IN THE FLD TAIL '// &
+           'PARAMETERS, WHICH W3FLD2 TAKES FROM THE FIRST GRID IT RUNS ON' )
+      RETURN
+    END IF
+#endif
 #ifdef W3_DB1
     IPAR(IS_FDONLY+1)      = MERGE(1, 0, FDONLY)
 #endif
-    ! The kernel translates W3SRCE as switch_lab_shrd compiles it: these six
-    ! switches on, none of the other switches W3SRCE, W3SLN1, W3SBT1, W3SDB1
-    ! branch on (W3_OMPG changes no arithmetic and is allowed).
-#if defined(W3_BT1) && defined(W3_DB1) && defined(W3_LN1) && defined(W3_MLIM)
+    ! The kernel translates W3SRCE as switch_lab_shrd compiles it, with SEED
+    ! and FLD2 each in or out, and with LN0 or SEED in place of LN1 (VSLN is
+    ! then zero, w3srcemd.F90:938-940): BT1, DB1 and MLIM on, ST4 and NL1 (the
+    ! caller's), none of the other switches W3SRCE, W3SLN1, W3SBT1, W3SDB1,
+    ! W3FLD2 branch on (W3_OMPG changes no arithmetic and is allowed). FLD1 is
+    ! not translated.
+#if defined(W3_BT1) && defined(W3_DB1) && defined(W3_MLIM) && ( defined(W3_LN1) || defined(W3_LN0) || defined(W3_SEED) )
 #if !defined(W3_BS1) && !defined(W3_BT4) && !defined(W3_BT8) && !defined(W3_BT9) && !defined(W3_DEBUGSRC) && !defined(W3_DEBUGRUN)
-#if !defined(W3_FLD1) && !defined(W3_FLD2) && !defined(W3_FLX1) && !defined(W3_FLX2) && !defined(W3_FLX3) && !defined(W3_FLX4) && !defined(W3_FLX5)
+#if !defined(W3_FLD1) && !defined(W3_FLX1) && !defined(W3_FLX2) && !defined(W3_FLX3) && !defined(W3_FLX4) && !defined(W3_FLX5)
 #if !defined(W3_IC1) && !defined(W3_IC2) && !defined(W3_IC3) && !defined(W3_IC4) && !defined(W3_IC5) && !defined(W3_IG1) && !defined(W3_IS1) && !defined(W3_IS2)
-#if !defined(W3_LN0) && !defined(W3_NL0) && !defined(W3_NL2) && !defined(W3_NL3) && !defined(W3_NL4) && !defined(W3_NL5) && !defined(W3_NLS) && !defined(W3_NNT)
-#if !defined(W3_PDLIB) && !defined(W3_REF1) && !defined(W3_S) && !defined(W3_SEED) && !defined(W3_T) && !defined(W3_T0) && !defined(W3_T1) && !defined(W3_TR1) && !defined(W3_UOST)
+#if !defined(W3_NL0) && !defined(W3_NL2) && !defined(W3_NL3) && !defined(W3_NL4) && !defined(W3_NL5) && !defined(W3_NLS) && !defined(W3_NNT)
+#if !defined(W3_PDLIB) && !defined(W3_REF1) && !defined(W3_S) && !defined(W3_T) && !defined(W3_T0) && !defined(W3_T1) && !defined(W3_TR1) && !defined(W3_UOST)
 #if !defined(W3_ST0) && !defined(W3_ST1) && !defined(W3_ST2) && !defined(W3_ST3) && !defined(W3_ST6) && !defined(W3_STAB3)
     IPAR(IS_LAB_SWITCH+1)  = 1
 #endif
@@ -1944,7 +1990,7 @@ CONTAINS
        D_INP, U10ABS, U10DIR, AS, USTAR, USTDIR, ICE, DTDYN, FCUT, DTG, &
        TAUWX, TAUWY, TAUOX, TAUOY, TAUWIX, TAUWIY, TAUWNX, TAUWNY,      &
        PHIAW, CHARN, TWS, PHIOC, WHITECAP, PHIBBL, TAUBBL, TAUICE,      &
-       PHICE, TAUOCX, TAUOCY, WNMEAN, DAIR, COEF )
+       PHICE, TAUOCX, TAUOCY, WNMEAN, DAIR, COEF, FPI )
     USE W3GDATMD, ONLY: NK, NSPEC, IGRID
     USE W3IDATMD, ONLY: INFLAGS2
     USE W3ODATMD, ONLY: FLOGRD
@@ -1959,7 +2005,7 @@ CONTAINS
                                TAUOY, TAUWIX, TAUWIY, TAUWNX, TAUWNY,   &
                                PHIAW, CHARN, TWS, PHIOC, WHITECAP(4),   &
                                PHIBBL, TAUBBL(2), TAUICE(2), PHICE,     &
-                               TAUOCX, TAUOCY, WNMEAN
+                               TAUOCX, TAUOCY, WNMEAN, FPI
     REAL, INTENT(OUT)       :: DTDYN, FCUT
     INTEGER(C_INT)          :: SH, IERR
     VSIO = 0.
@@ -1973,7 +2019,7 @@ CONTAINS
          COEF, USTAR, USTDIR, TAUWX, TAUWY, DTDYN, FCUT, TAUOX, TAUOY,  &
          TAUWIX, TAUWIY, TAUWNX, TAUWNY, PHIAW, CHARN, TWS, PHIOC,      &
          WHITECAP, PHIBBL, TAUBBL, TAUICE, PHICE, TAUOCX, TAUOCY,       &
-         WNMEAN, SH )
+         WNMEAN, FPI, SH )
     IERR = WW_SRCE_LAST_ERROR()
     !$OMP END CRITICAL (WW_KOKKOS_SRCE)
     CALL SRCE_CHECK ( 'W3SRCE', IERR )
@@ -2001,7 +2047,7 @@ CONTAINS
   SUBROUTINE W3KOKKOS_SRCE_BATCH ( IT, DTG, TAUWX, TAUWY )
     USE CONSTANTS, ONLY: UNDEF
     USE W3GDATMD, ONLY: NK, NSEAL, IGRID, MAPSF, MAPSTA, FLAGST
-    USE W3WDATMD, ONLY: VA, UST, USTDIR, ICE, RHOAIR, ASF
+    USE W3WDATMD, ONLY: VA, UST, USTDIR, ICE, RHOAIR, ASF, FPIS
     USE W3ADATMD, ONLY: WN, CG, DW, U10, U10D, AS, DTDYN, FCUT,        &
          TAUOX, TAUOY, TAUWIX, TAUWIY, TAUWNX, TAUWNY, PHIAW,    &
          CHARN, TWS, PHIOC, WHITECAP, PHIBBL, TAUBBL, TAUICE, PHICE,    &
@@ -2070,6 +2116,7 @@ CONTAINS
         BPSC(SRCEB_S_TAUOCX+1,IP) = TAUOCX(JSEA)
         BPSC(SRCEB_S_TAUOCY+1,IP) = TAUOCY(JSEA)
         BPSC(SRCEB_S_WNMEAN+1,IP) = WNMEAN(JSEA)
+        BPSC(SRCEB_S_FPI+1,IP)    = FPIS(ISEA)
         BWC(:,IP) = WHITECAP(JSEA,1:4)
         BTB(:,IP) = TAUBBL(JSEA,1:2)
         BTI(:,IP) = TAUICE(JSEA,1:2)
@@ -2115,6 +2162,9 @@ CONTAINS
       TAUOCX(JSEA)   = BPSC(SRCEB_S_TAUOCX+1,IP)
       TAUOCY(JSEA)   = BPSC(SRCEB_S_TAUOCY+1,IP)
       WNMEAN(JSEA)   = BPSC(SRCEB_S_WNMEAN+1,IP)
+#ifdef W3_FLD2
+      FPIS(ISEA)     = BPSC(SRCEB_S_FPI+1,IP)
+#endif
       WHITECAP(JSEA,1:4) = BWC(:,IP)
       TAUBBL(JSEA,1:2)   = BTB(:,IP)
       TAUICE(JSEA,1:2)   = BTI(:,IP)
