@@ -2038,7 +2038,13 @@ CONTAINS
 #endif
                 !
 #ifdef W3_MPI
+#ifdef W3_KOKKOS
+                ! ww3-gpu: W3KOKKOS_XYP3 moves these values itself, one message per pair
+                ! of ranks (ADR-0020, PATCH.md section 33).
+                IF ( NRQSG1 .GT. 0 .AND. .NOT. KOKKOS_XYP3 ) THEN
+#else
                 IF ( NRQSG1 .GT. 0 ) THEN
+#endif
                   CALL MPI_STARTALL (NRQSG1, IRQSG1(1:NRQSG1,1), IERR_MPI)
                   CALL MPI_STARTALL (NRQSG1, IRQSG1(1:NRQSG1,2), IERR_MPI)
                 END IF
@@ -2146,7 +2152,11 @@ CONTAINS
 #endif
                 !
 #ifdef W3_MPI
+#ifdef W3_KOKKOS
+                IF ( NRQSG1 .GT. 0 .AND. .NOT. KOKKOS_XYP3 ) THEN
+#else
                 IF ( NRQSG1 .GT. 0 ) THEN
+#endif
                   ALLOCATE ( STATCO(NRQSG1) )
                   CALL MPI_WAITALL (NRQSG1, IRQSG1(1:NRQSG1,1), STATCO, IERR_MPI)
                   CALL MPI_WAITALL (NRQSG1, IRQSG1(1:NRQSG1,2), STATCO, IERR_MPI)

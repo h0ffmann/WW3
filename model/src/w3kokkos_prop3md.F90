@@ -6,7 +6,8 @@
 !> Binds kokkos/src/fortran_iface/prop3_c.hpp of h0ffmann/ww3-gpu; PATCH.md
 !> section 11 there is the caller side. Nothing is computed here but the packing
 !> of what the Fortran routines read: W3KOKKOS_XYP3 replaces the DO ISPEC loop of
-!> W3WAVE section 3.6.3 (W3GATH, W3XYP3, W3SCAT per component, W3_SHRD), and
+!> W3WAVE section 3.6.3 (W3GATH, W3XYP3, W3SCAT per component, W3_SHRD; under
+!> W3_MPI the aggregated exchange of ADR-0020, PATCH.md section 33), and
 !> W3KOKKOS_KTP3 one intra-spectral part, the DO ITLOC loop of section 3.6.2 or
 !> 3.6.4 with its DO JSEA loop. Each part is opt-in: WW_KOKKOS_XYP3=1 and
 !> WW_KOKKOS_KTP3=1; WW_KOKKOS_ALL does not turn them on. Both work on the
@@ -19,6 +20,9 @@
 MODULE W3KOKKOS_PROP3MD
   USE ISO_C_BINDING, ONLY: C_INT, C_FLOAT, C_DOUBLE
   USE W3KOKKOSMD, ONLY: KOKKOS_PART, W3KOKKOS_REGISTER
+#ifdef W3_MPI
+  USE W3KOKKOS_EXCHMD, ONLY: W3KOKKOS_EXCH_INIT, W3KOKKOS_EXCH_PAIRS
+#endif
   IMPLICIT NONE
   PRIVATE
   PUBLIC :: KOKKOS_XYP3, KOKKOS_KTP3, W3KOKKOS_XYP3, W3KOKKOS_KTP3,      &
@@ -68,6 +72,43 @@ MODULE W3KOKKOS_PROP3MD
            MAPSTA(*), ISBPI(*), ON(*)
       REAL(C_FLOAT), INTENT(INOUT) :: VA(*)
     END FUNCTION WW_XYP3_BATCH_VA
+    ! The aggregated exchange under W3_MPI (prop3_c.hpp, PATCH.md section 33).
+    INTEGER(C_INT) FUNCTION WW_XYP3_MPI_PACK ( IGRID, VA, NSPEC, NSEALM,&
+         ISPS, NISP, BUF ) BIND(C, NAME='ww_xyp3_mpi_pack')
+      IMPORT :: C_INT, C_FLOAT
+      INTEGER(C_INT), VALUE        :: IGRID, NSPEC, NSEALM, NISP
+      REAL(C_FLOAT), INTENT(INOUT) :: VA(*)
+      INTEGER(C_INT), INTENT(IN)   :: ISPS(*)
+      REAL(C_FLOAT), INTENT(INOUT) :: BUF(*)
+    END FUNCTION WW_XYP3_MPI_PACK
+    INTEGER(C_INT) FUNCTION WW_XYP3_MPI_UNPACK ( IGRID, VA, NSPEC,      &
+         NSEALM, ISPS, NISP, BUF ) BIND(C, NAME='ww_xyp3_mpi_unpack')
+      IMPORT :: C_INT, C_FLOAT
+      INTEGER(C_INT), VALUE        :: IGRID, NSPEC, NSEALM, NISP
+      REAL(C_FLOAT), INTENT(INOUT) :: VA(*)
+      INTEGER(C_INT), INTENT(IN)   :: ISPS(*)
+      REAL(C_FLOAT), INTENT(IN)    :: BUF(*)
+    END FUNCTION WW_XYP3_MPI_UNPACK
+    INTEGER(C_INT) FUNCTION WW_XYP3_BATCH_MPI ( IGRID, RPAR, NRPAR,     &
+         IPAR, NIPAR, IMAPS, NIMAPS, TSCAL, NTSCAL, DTG, MAPSF, CLATS,  &
+         SIG, ECOS, ESIN, DPDX, DPDY, DQDX, DQDY, GSQRT, ATRNX, ATRNY,  &
+         MAPX2, MAPY2, MAPAXY, MAPCXY, MAPTRN, MAPSTA, CG, CX, CY,      &
+         FLBPI, NBI, ISBPI, BBPI0, BBPIN, ON, VA, NSPEC, NSEALM,        &
+         NAPROC, IAPROC, POFF, RBUF, SBUF, NBUF )                        &
+         BIND(C, NAME='ww_xyp3_batch_mpi')
+      IMPORT :: C_INT, C_FLOAT
+      INTEGER(C_INT), VALUE        :: IGRID, NRPAR, NIPAR, NIMAPS,      &
+           NTSCAL, FLBPI, NBI, NSPEC, NSEALM, NAPROC, IAPROC, NBUF
+      REAL(C_FLOAT), VALUE         :: DTG
+      REAL(C_FLOAT), INTENT(IN)    :: RPAR(*), TSCAL(*), CLATS(*),      &
+           SIG(*), ECOS(*), ESIN(*), DPDX(*), DPDY(*), DQDX(*), DQDY(*), &
+           GSQRT(*), ATRNX(*), ATRNY(*), CG(*), CX(*), CY(*), BBPI0(*),  &
+           BBPIN(*), RBUF(*)
+      INTEGER(C_INT), INTENT(IN)   :: IPAR(*), IMAPS(*), MAPSF(*),      &
+           MAPX2(*), MAPY2(*), MAPAXY(*), MAPCXY(*), MAPTRN(*),          &
+           MAPSTA(*), ISBPI(*), ON(*), POFF(*)
+      REAL(C_FLOAT), INTENT(INOUT) :: VA(*), SBUF(*)
+    END FUNCTION WW_XYP3_BATCH_MPI
     INTEGER(C_INT) FUNCTION WW_KTP3_BATCH ( RPAR, NRPAR, IPAR, NIPAR,   &
          SIG, DSIP, ECOS, ESIN, EC2, ESC, ES2, MAPWN, MAPTH2, MAPWN2,    &
          ITSTEP, NTIMES, FACTH, FACK, NSEA, CG, WN, NPTS, JSEA, ISEA,    &
@@ -122,7 +163,9 @@ MODULE W3KOKKOS_PROP3MD
 CONTAINS
   !/ ------------------------------------------------------------------- /
   !> The flags. XYP3 needs W3_SHRD (the W3GATH/W3SCAT it replaces are the
-  !> shared-memory ones) and a grid that is not tripole; both need PR3 with UQ
+  !> shared-memory ones) or, on a regular or curvilinear grid only, W3_MPI
+  !> with the aggregated exchange (ADR-0020, PATCH.md section 33), and a grid
+  !> that is not tripole; both need PR3 with UQ
   !> and a regular or curvilinear grid, and none of PDLIB, MGP, MGG (moving grid)
   !> or REFRX, which the translation does not cover. On an unstructured grid
   !> without PDLIB (PATCH.md section 30) KTP3 is covered as on a regular grid,
@@ -156,7 +199,11 @@ CONTAINS
     OKXU = .FALSE.
 #endif
     OKX = OKX .OR. OKXU
-#ifndef W3_SHRD
+#ifdef W3_MPI
+    ! The aggregated exchange covers W3GATH and W3SCAT's MPI arms on a regular
+    ! or curvilinear grid; W3XYPUG stays on the Fortran under MPI.
+    OKX = OKG .AND. GRIDS(IMOD)%ICLOSE .NE. ICLOSE_TRPL
+#elif !defined(W3_SHRD)
     OKX = .FALSE.
 #endif
     OKK = OKG .OR. OKU
@@ -167,6 +214,10 @@ CONTAINS
     KOKKOS_KTP3 = KOKKOS_PART ( 'KTP3', OKK )
     CALL W3KOKKOS_REGISTER ( 'XYP3', KOKKOS_XYP3 )
     CALL W3KOKKOS_REGISTER ( 'KTP3', KOKKOS_KTP3 )
+#ifdef W3_MPI
+    ! Collective: every rank of the grid sets up the same flag.
+    IF ( KOKKOS_XYP3 ) CALL W3KOKKOS_EXCH_INIT ( IMOD )
+#endif
 #else
     ! Without PR3 and UQ no translation covers the switch: ask anyway, so that
     ! WW_KOKKOS_XYP3=1 (or a preset) stops and WW_KOKKOS_ALL=1 counts or, under
@@ -182,6 +233,7 @@ CONTAINS
   !> W3WAVE section 3.6.3 on Kokkos: for every ISPEC with IAPPRO(ISPEC) ==
   !> IAPROC, W3GATH, W3XYP3 (ISPEC, DTG, MAPSTA, MAPFS, FIELD, VGX, VGY) and
   !> W3SCAT, W3_SHRD. MAPFS is not read by W3XYP3, VGX and VGY only under MGP.
+  !> Under W3_MPI, the same with W3GATH and W3SCAT's MPI arms: XYP3_MPI.
   SUBROUTINE W3KOKKOS_XYP3 ( DTG, MAPSTA )
 #if defined(W3_PR3) && defined(W3_UQ)
     USE W3GDATMD, ONLY: NX, NY, NSEA, NK, NTH, NSPEC, MAPSF, DTCFL,     &
@@ -235,6 +287,10 @@ CONTAINS
     TTEST(2) = 0
     TSCAL = 0.
     TSCAL(1) = DSEC21 ( TTEST, TIME )
+#ifdef W3_MPI
+    CALL XYP3_MPI ( DTG, MAPSTA, RPAR, IPAR, IMAPS, TSCAL, MTRN, ON )
+    RETURN
+#endif
     IF ( FLBPI ) THEN
       TSCAL(2) = DSEC21 ( TBPI0, TIME )
       TSCAL(3) = DSEC21 ( TBPI0, TBPIN )
@@ -257,6 +313,146 @@ CONTAINS
     CALL PROP3_CHECK ( 'W3XYP3', 5_C_INT )
 #endif
   END SUBROUTINE W3KOKKOS_XYP3
+#if defined(W3_PR3) && defined(W3_UQ) && defined(W3_MPI)
+  !/ ------------------------------------------------------------------- /
+  !> W3KOKKOS_XYP3 under W3_MPI (ADR-0020, plan unit M2, PATCH.md section
+  !> 31): the values W3WAVE's IRQSG1 and W3GATH/W3SCAT's IRQSG2 move, in one
+  !> message per pair of ranks and direction, packed and unpacked on the
+  !> resident VA.
+  !>
+  !> 1. Pack, for each other rank IP in rank order and each ISP it owns in
+  !>    ascending order, VA(ISP,1:NSEALM): what IRQSG1(:,1) sends with
+  !>    WW3_SPEC_VEC (w3initmd.F90, W3MPIP section 2).
+  !> 2. Exchange. This rank receives, from each IP, VA(ISP,1:NSEALM) of IP for
+  !>    each ISP this rank owns: GSTORE(IP+(K-1)*NAPROC) of W3GATH 2.d, which
+  !>    is GSTORE(ISEA) for the sea point ISEA = IP+(K-1)*NAPROC that IP holds
+  !>    as JSEA = K (INIT_GET_ISEA).
+  !> 3. W3GATH (FIELD = 0., 2.c, 2.e), W3XYP3 and W3SCAT (2.b, 2.d) of every
+  !>    owned component in one call; the propagated value of a sea point IP
+  !>    holds goes to IP's block, SSTORE(ISEA) of W3SCAT 2.b. An entry past
+  !>    NSEA (the last column of a rank with NSEAL = NSEALM - 1) is 0., what
+  !>    SSTORE holds there: W3MPIP zeroes it and W3SCAT writes ISEA <= NSEA only.
+  !> 4. Exchange back, the transposed message of step 2: IRQSG2(:,2) to
+  !>    IRQSG1(:,2).
+  !> 5. Unpack into VA(ISP,1:NSEALM) for every ISP another rank owns, as the
+  !>    receive of IRQSG1(:,2) writes it.
+  !>
+  !> Every value is a REAL moved unchanged, and each component's FIELD is the
+  !> Fortran's, so W3XYP3 sees the same inputs. One assumption is checked
+  !> here: no sea point has MAPSTA = 0. W3SCAT 2.b leaves SSTORE(ISEA,IBFLOC)
+  !> as an earlier component left it at such a point, which the non-owner
+  !> then receives; ww3_grid gives no sea point MAPSTA = 0 (w3gridmd.F90,
+  !> section 4 of W3GRID) and the run changes only its sign (W3ULEV, W3UICE,
+  !> W3INIT's SIGN of MAPTST), so the check never fires on a grid ww3_grid
+  !> wrote, and the model stops rather than differ when it does.
+  SUBROUTINE XYP3_MPI ( DTG, MAPSTA, RPAR, IPAR, IMAPS, TSCAL, MTRN, ON )
+    USE W3GDATMD, ONLY: NSEA, NSPEC, MAPSF, CLATS, ECOS, ESIN,           &
+         SIG, DPDX, DPDY, DQDX, DQDY, GSQRT, IGRID
+    USE W3WDATMD, ONLY: TIME, VA
+    USE W3ADATMD, ONLY: MAPX2, MAPY2, MAPAXY, MAPCXY, CG, CX, CY,       &
+         ATRNX, ATRNY, IAPPRO
+    USE W3ODATMD, ONLY: NDSE, IAPROC, NAPROC, FLBPI, NBI, TBPI0, TBPIN, &
+         ISBPI, BBPI0, BBPIN
+    USE W3TIMEMD, ONLY: DSEC21
+    USE W3SERVMD, ONLY: EXTCDE
+    IMPLICIT NONE
+    REAL, INTENT(IN)           :: DTG
+    INTEGER, INTENT(IN)        :: MAPSTA(*)
+    REAL(C_FLOAT), INTENT(IN)  :: RPAR(5)
+    REAL(C_FLOAT), INTENT(INOUT) :: TSCAL(3)
+    INTEGER(C_INT), INTENT(IN) :: IPAR(11), IMAPS(8), MTRN(*), ON(*)
+    INTEGER(C_INT), ALLOCATABLE, SAVE :: PK(:)
+    INTEGER, ALLOCATABLE, SAVE :: SOFF(:), SCNT(:), ROFF(:), RCNT(:)
+    REAL, ALLOCATABLE, SAVE    :: SB1(:), RB1(:), SB2(:), RB2(:)
+    REAL(C_FLOAT)              :: RDUM(1)
+    INTEGER(C_INT)             :: IDUM(1), IERR
+    INTEGER                    :: ISEA, ISP, IP, NSPLOC, NPK, NSEALM, NS, NR
+    !
+    ! A rank past NAPROC owns no component and holds no sea point: the
+    ! Fortran loop and both IRQSG1 lists are empty there (W3MPIP section 1).
+    IF ( IAPROC .GT. NAPROC ) RETURN
+    DO ISEA = 1, NSEA
+      IF ( MAPSTA(MAPSF(ISEA,3)) .EQ. 0 ) THEN
+        WRITE (NDSE,'(A,I0)') '*** WAVEWATCH III ERROR IN '//            &
+             'W3KOKKOS_PROP3MD : W3XYP3 ON KOKKOS UNDER MPI NEEDS '//    &
+             'MAPSTA /= 0 ON EVERY SEA POINT; IT IS 0 AT ISEA = ', ISEA
+        CALL EXTCDE ( 1 )
+      END IF
+    END DO
+    NSEALM = UBOUND(VA,2)
+    NSPLOC = COUNT ( ON(1:NSPEC) .NE. 0_C_INT )
+    !
+    IF ( ALLOCATED(PK) ) THEN
+      IF ( SIZE(PK) .NE. MAX(1,NSPEC-NSPLOC) .OR. SIZE(SOFF) .NE. NAPROC  &
+           .OR. SIZE(SB1) .NE. MAX(1,(NSPEC-NSPLOC)*NSEALM) .OR.         &
+           SIZE(RB1) .NE. MAX(1,(NAPROC-1)*NSPLOC*NSEALM) )              &
+           DEALLOCATE ( PK, SOFF, SCNT, ROFF, RCNT, SB1, RB1, SB2, RB2 )
+    END IF
+    IF ( .NOT. ALLOCATED(PK) ) ALLOCATE ( PK(MAX(1,NSPEC-NSPLOC)),       &
+         SOFF(NAPROC), SCNT(NAPROC), ROFF(NAPROC), RCNT(NAPROC),         &
+         SB1(MAX(1,(NSPEC-NSPLOC)*NSEALM)), RB2(MAX(1,(NSPEC-NSPLOC)*NSEALM)), &
+         RB1(MAX(1,(NAPROC-1)*NSPLOC*NSEALM)),                           &
+         SB2(MAX(1,(NAPROC-1)*NSPLOC*NSEALM)) )
+    !
+    ! The components of the other ranks, rank by rank, and the block each
+    ! rank's messages take in the buffers, in REALs.
+    NPK = 0
+    NS  = 0
+    NR  = 0
+    DO IP = 1, NAPROC
+      SOFF(IP) = NS
+      ROFF(IP) = NR
+      SCNT(IP) = 0
+      RCNT(IP) = 0
+      IF ( IP .EQ. IAPROC ) CYCLE
+      DO ISP = 1, NSPEC
+        IF ( IAPPRO(ISP) .EQ. IP ) THEN
+          NPK = NPK + 1
+          PK(NPK) = ISP
+        END IF
+      END DO
+      SCNT(IP) = ( NPK * NSEALM ) - NS
+      RCNT(IP) = NSPLOC * NSEALM
+      NS = NS + SCNT(IP)
+      NR = NR + RCNT(IP)
+    END DO
+    IF ( NPK .NE. NSPEC - NSPLOC ) THEN
+      WRITE (NDSE,'(A)') '*** WAVEWATCH III ERROR IN W3KOKKOS_PROP3MD : '// &
+           'IAPPRO NAMES A RANK OUTSIDE 1 .. NAPROC'
+      CALL EXTCDE ( 1 )
+    END IF
+    !
+    IERR = WW_XYP3_MPI_PACK ( IGRID, VA, SIZE(VA,1), NSEALM, PK, NPK, SB1 )
+    CALL PROP3_CHECK ( 'W3XYP3 (MPI PACK)', IERR )
+    CALL W3KOKKOS_EXCH_PAIRS ( IGRID, SB1, SOFF, SCNT, RB1, ROFF, RCNT )
+    !
+    IF ( FLBPI ) THEN
+      TSCAL(2) = DSEC21 ( TBPI0, TIME )
+      TSCAL(3) = DSEC21 ( TBPI0, TBPIN )
+      IERR = WW_XYP3_BATCH_MPI ( IGRID, RPAR, 5_C_INT, IPAR, 11_C_INT,  &
+           IMAPS, 8_C_INT, TSCAL, 3_C_INT, DTG, MAPSF, CLATS, SIG, ECOS, &
+           ESIN, DPDX, DPDY, DQDX, DQDY, GSQRT, ATRNX, ATRNY, MAPX2,     &
+           MAPY2, MAPAXY, MAPCXY, MTRN, MAPSTA, CG, CX, CY, 1_C_INT, NBI,&
+           ISBPI, BBPI0, BBPIN, ON, VA, SIZE(VA,1), NSEALM, NAPROC,      &
+           IAPROC, ROFF, RB1, SB2, NR )
+    ELSE
+      IDUM = 0
+      RDUM = 0.
+      IERR = WW_XYP3_BATCH_MPI ( IGRID, RPAR, 5_C_INT, IPAR, 11_C_INT,  &
+           IMAPS, 8_C_INT, TSCAL, 3_C_INT, DTG, MAPSF, CLATS, SIG, ECOS, &
+           ESIN, DPDX, DPDY, DQDX, DQDY, GSQRT, ATRNX, ATRNY, MAPX2,     &
+           MAPY2, MAPAXY, MAPCXY, MTRN, MAPSTA, CG, CX, CY, 0_C_INT,     &
+           0_C_INT, IDUM, RDUM, RDUM, ON, VA, SIZE(VA,1), NSEALM, NAPROC,&
+           IAPROC, ROFF, RB1, SB2, NR )
+    END IF
+    CALL PROP3_CHECK ( 'W3XYP3 (MPI)', IERR )
+    !
+    CALL W3KOKKOS_EXCH_PAIRS ( IGRID, SB2, ROFF, RCNT, RB2, SOFF, SCNT )
+    IERR = WW_XYP3_MPI_UNPACK ( IGRID, VA, SIZE(VA,1), NSEALM, PK, NPK,  &
+         RB2 )
+    CALL PROP3_CHECK ( 'W3XYP3 (MPI UNPACK)', IERR )
+  END SUBROUTINE XYP3_MPI
+#endif
   !/ ------------------------------------------------------------------- /
   !> W3WAVE section 3.6.3 on an unstructured grid on Kokkos (PATCH.md section
   !> 30): for every ISPEC with IAPPRO(ISPEC) == IAPROC, W3GATH, W3XYPUG

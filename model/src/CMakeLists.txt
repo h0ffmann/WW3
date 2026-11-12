@@ -33,6 +33,8 @@ if(WW_KOKKOS)
   if("ST4" IN_LIST switches AND "FLX5" IN_LIST switches)
     message(FATAL_ERROR "The Kokkos ST4 path does not support FLX5: drop KOKKOS or FLX5")
   endif()
+  # 0.13 is the first ABI with W3XYP3 under MPI (ww_xyp3_batch_mpi,
+  # ww_xyp3_mpi_pack, ww_xyp3_mpi_unpack, PATCH.md section 33);
   # 0.12 is the first ABI whose W3SRCE packets carry SEED, FLD2 and no LN1
   # (NRSPAR, NISPAR, SRCEB_NPSC and ww_srce's FPI, PATCH.md section 32);
   # 0.11 was the first ABI with W3XYPUG on an unstructured grid (ww_xypug_batch_va);
@@ -45,7 +47,7 @@ if(WW_KOKKOS)
   # propagation on the resident VA (ww_xyp3_batch_va, ww_ktp3_batch_va); 0.5 added the resident VA (ww_va_*, ww_srce_batch_va) and covers
   # ww_xyp3_batch and ww_ktp3_batch, added under 0.4; 0.4 added ww_srce_batch, 0.3
   # ww_kokkos_flag and the ww_wave_* entry points.
-  find_package(ww_kokkos 0.12 REQUIRED)
+  find_package(ww_kokkos 0.13 REQUIRED)
   target_link_libraries(ww3_lib PUBLIC ww_kokkos::ww_kokkos)
   # Wiring units (h0ffmann/ww3-gpu, kokkos/src/fortran_iface/PATCH.md section 9): each
   # unit is one file w3kokkos_<unit>md.F90 holding MODULE W3KOKKOS_<UNIT>MD and its
